@@ -9,8 +9,8 @@ Each step is reviewed and approved before the next one starts.
 
 | Step | Topic | Document | Status |
 |------|-------|----------|--------|
-| 1 | Structure | [docs/01-structure.md](docs/01-structure.md) | Decisions answered — waiting for final approval |
-| 2 | Interface | — | Not started |
+| 1 | Structure | [docs/01-structure.md](docs/01-structure.md) | ✅ Approved |
+| 2 | Interface | [docs/02-interface.md](docs/02-interface.md) | Draft — waiting for approval |
 | 3 | Rules | — | Not started |
 | 4 | Data | — | Not started |
 | 5 | Communication | — | Not started |

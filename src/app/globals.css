@@ -1,3 +1,39 @@
+/* Low-fidelity prototype tokens (step 2). Visual identity is decided later. */
+:root {
+  --bg: #f4f4f5;
+  --surface: #ffffff;
+  --text: #18181b;
+  --muted: #71717a;
+  --border: #d4d4d8;
+  --primary: #18181b;
+  --primary-text: #ffffff;
+  --danger: #b91c1c;
+  --warning-bg: #fef3c7;
+  --warning-text: #92400e;
+  --ok-bg: #dcfce7;
+  --ok-text: #166534;
+  --radius: 10px;
+  --tap: 48px; /* minimum touch target */
+  --nav-height: 64px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #09090b;
+    --surface: #18181b;
+    --text: #fafafa;
+    --muted: #a1a1aa;
+    --border: #3f3f46;
+    --primary: #fafafa;
+    --primary-text: #09090b;
+    --danger: #f87171;
+    --warning-bg: #422006;
+    --warning-text: #fcd34d;
+    --ok-bg: #052e16;
+    --ok-text: #86efac;
+  }
+}
+
 *,
 *::before,
 *::after {
@@ -6,5 +42,27 @@
 
 body {
   margin: 0;
+  background: var(--bg);
+  color: var(--text);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+a {
+  color: inherit;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.2;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
 }

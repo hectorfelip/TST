@@ -1,7 +1,7 @@
-# Step 1 — Structure (v2, waiting for final approval)
+# Step 1 — Structure (APPROVED)
 
-> Status: **decisions answered, waiting for final approval.**
-> Next step (2 — Interface) only starts after approval.
+> Status: **approved by the owner.**
+> Changes after approval: `src/components` (shared UI) and `src/prototype` (fake data, removed in step 5) were added in step 2.
 
 ## 1. What problem are we solving?
 
@@ -172,7 +172,7 @@ the first version, but the screens are less friendly on a phone.
 - [x] Risks listed with a solution for each one.
 - [x] Owner answered the 5 open decisions.
 - [x] Project skeleton created: `npm test` (5 tests), `npm run typecheck`, `npm run lint` and `npm run build` all pass.
-- [ ] Owner approved this document.
+- [x] Owner approved this document.
 
 ## Glossary
 
