@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { ButtonLink, Card, Money, Note, PageHeader, styles } from "@/components/ui";
-import { clientName, comandas, comandaTotal, paymentMethodLabel, type PaymentMethod } from "@/prototype/mock-data";
+import { DEMO_BARBER_ID, getDemoRole } from "@/prototype/demo-role";
+import { NoAccess } from "@/prototype/owner-only";
+import { clientName, isComandaOf, comandas, comandaTotal, paymentMethodLabel, type PaymentMethod } from "@/prototype/mock-data";
 
 const methods: PaymentMethod[] = ["pix", "dinheiro", "debito", "credito"];
 
@@ -8,6 +10,8 @@ export default async function CloseComandaPage(props: PageProps<"/comandas/[id]/
   const { id } = await props.params;
   const comanda = comandas.find((c) => c.id === id);
   if (!comanda) notFound();
+  const role = await getDemoRole();
+  if (role === "barber" && !isComandaOf(comanda, DEMO_BARBER_ID)) return <NoAccess />;
 
   return (
     <>
@@ -30,8 +34,20 @@ export default async function CloseComandaPage(props: PageProps<"/comandas/[id]/
           <label className={styles.label} htmlFor="cash">Dinheiro recebido (para calcular troco)</label>
           <input id="cash" className={styles.input} inputMode="decimal" placeholder="R$ 0,00" />
         </div>
-        <Note>Desconto: só o dono pode dar (regra do passo 3).</Note>
+        <Note>Pagamento dividido (ex.: parte Pix, parte dinheiro) fica para a versão 2.</Note>
       </Card>
+
+      {role === "owner" ? (
+        <Card title="Desconto">
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="discount">Valor do desconto</label>
+            <input id="discount" className={styles.input} inputMode="decimal" placeholder="R$ 0,00" />
+          </div>
+          <Note>Só o dono pode dar desconto.</Note>
+        </Card>
+      ) : (
+        <Note>Desconto só pode ser dado pelo dono.</Note>
+      )}
 
       <ButtonLink href="/comandas" block>Confirmar pagamento</ButtonLink>
       <ButtonLink href={`/comandas/${comanda.id}`} variant="secondary" block>Voltar</ButtonLink>

@@ -58,6 +58,7 @@ export type Comanda = {
   number: number;
   clientId: string | null; // null = walk-in client ("cliente avulso")
   openedAt: string;
+  openedBy: string; // employee id
   status: "aberta" | "fechada" | "cancelada";
   items: ComandaItem[];
   payment?: PaymentMethod;
@@ -65,50 +66,79 @@ export type Comanda = {
 
 export const comandas: Comanda[] = [
   {
-    id: "1027", number: 1027, clientId: "c3", openedAt: "10:32", status: "aberta",
+    id: "1027", number: 1027, openedBy: "e2", clientId: "c3", openedAt: "10:32", status: "aberta",
     items: [
       { kind: "servico", name: "Corte + Barba", price: 7000, barberId: "e2" },
       { kind: "produto", name: "Pomada modeladora", price: 4500, barberId: "e2" },
     ],
   },
   {
-    id: "1026", number: 1026, clientId: null, openedAt: "10:15", status: "aberta",
+    id: "1026", number: 1026, openedBy: "e3", clientId: null, openedAt: "10:15", status: "aberta",
     items: [{ kind: "servico", name: "Corte", price: 4500, barberId: "e3" }],
   },
-  { id: "1025", number: 1025, clientId: "c1", openedAt: "10:05", status: "aberta", items: [] },
+  { id: "1025", number: 1025, openedBy: "e2", clientId: "c1", openedAt: "10:05", status: "aberta", items: [] },
   {
-    id: "1024", number: 1024, clientId: "c2", openedAt: "09:40", status: "fechada", payment: "pix",
+    id: "1024", number: 1024, openedBy: "e1", clientId: "c2", openedAt: "09:40", status: "fechada", payment: "pix",
     items: [
       { kind: "servico", name: "Corte", price: 4500, barberId: "e1" },
       { kind: "servico", name: "Sobrancelha", price: 1500, barberId: "e1" },
     ],
   },
   {
-    id: "1023", number: 1023, clientId: null, openedAt: "09:10", status: "fechada", payment: "dinheiro",
+    id: "1023", number: 1023, openedBy: "e3", clientId: null, openedAt: "09:10", status: "fechada", payment: "dinheiro",
     items: [
       { kind: "servico", name: "Barba", price: 3500, barberId: "e3" },
       { kind: "produto", name: "Cerveja long neck", price: 1200, barberId: "e3" },
     ],
   },
   {
-    id: "1022", number: 1022, clientId: "c4", openedAt: "09:02", status: "cancelada",
+    id: "1021", number: 1021, openedBy: "e2", clientId: "c3", openedAt: "09:05", status: "fechada", payment: "credito",
+    items: [
+      { kind: "servico", name: "Corte + Barba", price: 7000, barberId: "e2" },
+      { kind: "produto", name: "Óleo para barba", price: 3990, barberId: "e2" },
+    ],
+  },
+  {
+    id: "1022", number: 1022, openedBy: "e2", clientId: "c4", openedAt: "09:02", status: "cancelada",
     items: [{ kind: "servico", name: "Corte", price: 4500, barberId: "e2" }],
   },
+];
+
+export type CashMovement = {
+  time: string;
+  description: string;
+  amount: Cents; // negative = money out
+  method: PaymentMethod;
+};
+
+const movements: CashMovement[] = [
+  { time: "09:00", description: "Abertura do caixa (troco)", amount: 10000, method: "dinheiro" },
+  { time: "09:12", description: "Comanda #1021", amount: 10990, method: "credito" },
+  { time: "09:25", description: "Comanda #1023", amount: 4700, method: "dinheiro" },
+  { time: "09:58", description: "Comanda #1024", amount: 6000, method: "pix" },
+  { time: "10:20", description: "Despesa: café e açúcar", amount: -1850, method: "dinheiro" },
 ];
 
 export const cashRegister = {
   status: "aberto" as const,
   openedAt: "09:00",
   openedBy: "Carlos",
-  openingCash: 10000,
-  byMethod: { dinheiro: 4700, pix: 6000, debito: 0, credito: 0 } satisfies Record<PaymentMethod, Cents>,
-  movements: [
-    { time: "09:00", description: "Abertura do caixa (troco)", amount: 10000 },
-    { time: "09:25", description: "Comanda #1023", amount: 4700 },
-    { time: "09:58", description: "Comanda #1024", amount: 6000 },
-    { time: "10:20", description: "Despesa: café e açúcar", amount: -1850 },
-  ],
+  movements,
 };
+
+/** Money received from comandas, per payment method (opening cash and expenses excluded). */
+export function receivedByMethod(list: CashMovement[]): Record<PaymentMethod, Cents> {
+  const totals: Record<PaymentMethod, Cents> = { dinheiro: 0, pix: 0, debito: 0, credito: 0 };
+  for (const m of list) {
+    if (m.description.startsWith("Comanda")) totals[m.method] += m.amount;
+  }
+  return totals;
+}
+
+/** Only physical cash stays in the drawer: Pix and card never enter it. */
+export function expectedCashInDrawer(list: CashMovement[]): Cents {
+  return list.filter((m) => m.method === "dinheiro").reduce((sum, m) => sum + m.amount, 0);
+}
 
 export const monthReport = {
   label: "Setembro 2026",
@@ -126,6 +156,16 @@ export const monthReport = {
     { name: "Barba", count: 64 },
   ],
 };
+
+/** Barber sees comandas he opened or where he did at least one item. */
+export function isComandaOf(comanda: Comanda, employeeId: string): boolean {
+  return comanda.openedBy === employeeId || comanda.items.some((i) => i.barberId === employeeId);
+}
+
+/** Revenue of one barber = sum of the items he did (not the whole comanda). */
+export function barberRevenue(comanda: Comanda, employeeId: string): Cents {
+  return comanda.items.filter((i) => i.barberId === employeeId).reduce((sum, i) => sum + i.price, 0);
+}
 
 export function comandaTotal(comanda: Comanda): Cents {
   return comanda.items.reduce((sum, item) => sum + item.price, 0);

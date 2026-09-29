@@ -1,7 +1,8 @@
 import { Badge, ButtonLink, Card, PageHeader, styles } from "@/components/ui";
 import { employees } from "@/prototype/mock-data";
+import { OwnerOnly } from "@/prototype/owner-only";
 
-export default function TeamPage() {
+function TeamPageContent() {
   return (
     <>
       <PageHeader title="Equipe" action={<ButtonLink href="/equipe">+ Adicionar pessoa</ButtonLink>} />
@@ -19,5 +20,13 @@ export default function TeamPage() {
         </ul>
       </Card>
     </>
+  );
+}
+
+export default function TeamPage() {
+  return (
+    <OwnerOnly>
+      <TeamPageContent />
+    </OwnerOnly>
   );
 }

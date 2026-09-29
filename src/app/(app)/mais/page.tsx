@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Card, PageHeader, styles } from "@/components/ui";
+import { getDemoRole } from "@/prototype/demo-role";
 
-const links = [
+const ownerLinks = [
   { href: "/clientes", label: "Clientes" },
   { href: "/servicos", label: "Serviços" },
   { href: "/estoque", label: "Estoque" },
@@ -10,7 +11,13 @@ const links = [
   { href: "/login", label: "Sair" },
 ];
 
-export default function MorePage() {
+const barberLinks = [
+  { href: "/clientes", label: "Clientes" },
+  { href: "/login", label: "Sair" },
+];
+
+export default async function MorePage() {
+  const links = (await getDemoRole()) === "owner" ? ownerLinks : barberLinks;
   return (
     <>
       <PageHeader title="Mais" />

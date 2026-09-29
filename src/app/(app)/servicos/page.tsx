@@ -1,7 +1,8 @@
 import { Badge, ButtonLink, Card, Money, PageHeader, styles } from "@/components/ui";
 import { services } from "@/prototype/mock-data";
+import { OwnerOnly } from "@/prototype/owner-only";
 
-export default function ServicesPage() {
+function ServicesPageContent() {
   return (
     <>
       <PageHeader title="Serviços" action={<ButtonLink href="/servicos">+ Novo serviço</ButtonLink>} />
@@ -21,5 +22,13 @@ export default function ServicesPage() {
         </ul>
       </Card>
     </>
+  );
+}
+
+export default function ServicesPage() {
+  return (
+    <OwnerOnly>
+      <ServicesPageContent />
+    </OwnerOnly>
   );
 }

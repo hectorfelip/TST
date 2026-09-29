@@ -10,7 +10,7 @@ Each step is reviewed and approved before the next one starts.
 | Step | Topic | Document | Status |
 |------|-------|----------|--------|
 | 1 | Structure | [docs/01-structure.md](docs/01-structure.md) | ✅ Approved |
-| 2 | Interface | [docs/02-interface.md](docs/02-interface.md) | Draft — waiting for approval |
+| 2 | Interface | [docs/02-interface.md](docs/02-interface.md) · [demo guide](docs/02-demo-guide.md) | Decisions answered — waiting for barbershop feedback |
 | 3 | Rules | — | Not started |
 | 4 | Data | — | Not started |
 | 5 | Communication | — | Not started |

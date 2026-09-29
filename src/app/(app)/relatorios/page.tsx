@@ -1,8 +1,9 @@
 import { Card, Money, Note, PageHeader, Stat, styles } from "@/components/ui";
 import { formatBRL } from "@/shared/money";
 import { monthReport, paymentMethodLabel, type PaymentMethod } from "@/prototype/mock-data";
+import { OwnerOnly } from "@/prototype/owner-only";
 
-export default function ReportsPage() {
+function ReportsPageContent() {
   const r = monthReport;
 
   return (
@@ -57,5 +58,13 @@ export default function ReportsPage() {
         </ul>
       </Card>
     </>
+  );
+}
+
+export default function ReportsPage() {
+  return (
+    <OwnerOnly>
+      <ReportsPageContent />
+    </OwnerOnly>
   );
 }

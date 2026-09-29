@@ -1,17 +1,19 @@
 import { notFound } from "next/navigation";
 import { ButtonLink, Card, Money, Note, PageHeader, styles } from "@/components/ui";
 import { clients, comandas, comandaTotal, employeeName } from "@/prototype/mock-data";
+import { getDemoRole } from "@/prototype/demo-role";
 
 export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
   const { id } = await props.params;
   const client = clients.find((c) => c.id === id);
   if (!client) notFound();
+  const isOwner = (await getDemoRole()) === "owner";
 
   const history = comandas.filter((c) => c.clientId === client.id && c.status === "fechada");
 
   return (
     <>
-      <PageHeader title={client.name} subtitle={client.phone} action={<ButtonLink href={`/clientes/${client.id}`} variant="secondary">Editar</ButtonLink>} />
+      <PageHeader title={client.name} subtitle={client.phone} action={isOwner && <ButtonLink href={`/clientes/${client.id}`} variant="secondary">Editar</ButtonLink>} />
 
       <Card title="Resumo">
         <p>{client.visits} visitas · última há {client.lastVisitDaysAgo} dias</p>
@@ -36,8 +38,12 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
         )}
       </Card>
 
-      <ButtonLink href="/clientes" variant="danger" block>Excluir dados do cliente (LGPD)</ButtonLink>
-      <Note>O histórico financeiro continua, mas nome e telefone são apagados.</Note>
+      {isOwner && (
+        <>
+          <ButtonLink href="/clientes" variant="danger" block>Excluir dados do cliente (LGPD)</ButtonLink>
+          <Note>O histórico financeiro continua, mas nome e telefone são apagados.</Note>
+        </>
+      )}
     </>
   );
 }

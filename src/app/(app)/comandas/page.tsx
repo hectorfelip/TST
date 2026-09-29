@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge, ButtonLink, Card, Money, PageHeader, styles } from "@/components/ui";
-import { clientName, comandas, comandaTotal, employeeName, paymentMethodLabel, type Comanda } from "@/prototype/mock-data";
+import { clientName, comandas, comandaTotal, employeeName, isComandaOf, paymentMethodLabel, type Comanda } from "@/prototype/mock-data";
+import { DEMO_BARBER_ID, getDemoRole } from "@/prototype/demo-role";
 
 function barbersOf(comanda: Comanda): string {
   const names = new Set(comanda.items.map((i) => employeeName(i.barberId)));
@@ -26,13 +27,15 @@ function ComandaRow({ comanda }: { comanda: Comanda }) {
   );
 }
 
-export default function ComandasPage() {
-  const open = comandas.filter((c) => c.status === "aberta");
-  const done = comandas.filter((c) => c.status !== "aberta");
+export default async function ComandasPage() {
+  const role = await getDemoRole();
+  const visible = role === "owner" ? comandas : comandas.filter((c) => isComandaOf(c, DEMO_BARBER_ID));
+  const open = visible.filter((c) => c.status === "aberta");
+  const done = visible.filter((c) => c.status !== "aberta");
 
   return (
     <>
-      <PageHeader title="Comandas" subtitle="Hoje" action={<ButtonLink href="/comandas/nova">+ Nova comanda</ButtonLink>} />
+      <PageHeader title="Comandas" subtitle={role === "owner" ? "Hoje · todas" : "Hoje · só as minhas"} action={<ButtonLink href="/comandas/nova">+ Nova comanda</ButtonLink>} />
       <Card title={`Abertas (${open.length})`}>
         <ul className={styles.list}>{open.map((c) => <ComandaRow key={c.id} comanda={c} />)}</ul>
       </Card>

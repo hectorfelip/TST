@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { Badge, ButtonLink, Card, Money, Note, PageHeader, styles } from "@/components/ui";
-import { clientName, comandas, comandaTotal, employeeName, products, services } from "@/prototype/mock-data";
+import { clientName, comandas, comandaTotal, employeeName, isComandaOf, products, services } from "@/prototype/mock-data";
+import { DEMO_BARBER_ID, getDemoRole } from "@/prototype/demo-role";
+import { NoAccess } from "@/prototype/owner-only";
 
 const statusLabel = { aberta: "Aberta", fechada: "Fechada", cancelada: "Cancelada" } as const;
 
@@ -8,6 +10,7 @@ export default async function ComandaPage(props: PageProps<"/comandas/[id]">) {
   const { id } = await props.params;
   const comanda = comandas.find((c) => c.id === id);
   if (!comanda) notFound();
+  if ((await getDemoRole()) === "barber" && !isComandaOf(comanda, DEMO_BARBER_ID)) return <NoAccess />;
 
   const isOpen = comanda.status === "aberta";
   const favorites = services.filter((s) => s.favorite && s.active);
@@ -70,7 +73,7 @@ export default async function ComandaPage(props: PageProps<"/comandas/[id]">) {
 
           <ButtonLink href={`/comandas/${comanda.id}/fechar`} block>Fechar comanda</ButtonLink>
           <ButtonLink href="/comandas" variant="danger" block>Cancelar comanda</ButtonLink>
-          <Note>Cancelar pede um motivo. Comanda já paga só o dono pode cancelar.</Note>
+          <Note>Cancelar pede um motivo (comanda vazia pode ser descartada sem motivo). Comanda já paga só o dono pode cancelar.</Note>
         </>
       )}
     </>

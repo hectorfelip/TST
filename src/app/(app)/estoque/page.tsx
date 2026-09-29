@@ -1,7 +1,8 @@
 import { Badge, ButtonLink, Card, Money, Note, PageHeader, styles } from "@/components/ui";
 import { products } from "@/prototype/mock-data";
+import { OwnerOnly } from "@/prototype/owner-only";
 
-export default function InventoryPage() {
+function InventoryPageContent() {
   const groups = [
     { title: "Para venda", items: products.filter((p) => p.use === "venda") },
     { title: "Uso interno", items: products.filter((p) => p.use === "interno") },
@@ -33,5 +34,13 @@ export default function InventoryPage() {
       </div>
       <Note>Produto vendido em comanda sai do estoque sozinho.</Note>
     </>
+  );
+}
+
+export default function InventoryPage() {
+  return (
+    <OwnerOnly>
+      <InventoryPageContent />
+    </OwnerOnly>
   );
 }

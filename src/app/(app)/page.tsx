@@ -1,9 +1,61 @@
-import { ButtonLink, Badge, Card, Money, PageHeader, Stat, styles } from "@/components/ui";
-import { formatBRL } from "@/shared/money";
-import { cashRegister, clientName, comandas, comandaTotal, products } from "@/prototype/mock-data";
 import Link from "next/link";
+import { Badge, ButtonLink, Card, Money, PageHeader, Stat, styles } from "@/components/ui";
+import { formatBRL } from "@/shared/money";
+import {
+  barberRevenue,
+  cashRegister,
+  clientName,
+  comandas,
+  comandaTotal,
+  isComandaOf,
+  products,
+  type Comanda,
+} from "@/prototype/mock-data";
+import { DEMO_BARBER_ID, getDemoRole } from "@/prototype/demo-role";
 
-export default function DashboardPage() {
+function OpenComandas({ list }: { list: Comanda[] }) {
+  if (list.length === 0) return <p className={styles.rowMeta}>Nenhuma comanda aberta.</p>;
+  return (
+    <ul className={styles.list}>
+      {list.map((c) => (
+        <li key={c.id}>
+          <Link href={`/comandas/${c.id}`} className={styles.row}>
+            <span className={styles.rowMain}>
+              <span>#{c.number} · {clientName(c.clientId)}</span>
+              <span className={styles.rowMeta}>Aberta às {c.openedAt} · {c.items.length} itens</span>
+            </span>
+            <strong><Money cents={comandaTotal(c)} /></strong>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const newComandaButton = <ButtonLink href="/comandas/nova">+ Nova comanda</ButtonLink>;
+const today = "Hoje, terça-feira 29/09";
+
+function BarberDashboard() {
+  const mine = comandas.filter((c) => isComandaOf(c, DEMO_BARBER_ID));
+  const closed = mine.filter((c) => c.status === "fechada");
+  const open = mine.filter((c) => c.status === "aberta");
+  const revenue = closed.reduce((sum, c) => sum + barberRevenue(c, DEMO_BARBER_ID), 0);
+
+  return (
+    <>
+      <PageHeader title="Meu dia" subtitle={today} action={newComandaButton} />
+      <div className={styles.stats}>
+        <Stat label="Meu faturamento hoje" value={formatBRL(revenue)} />
+        <Stat label="Atendimentos fechados" value={String(closed.length)} />
+      </div>
+      <Card title="Minhas comandas abertas">
+        <OpenComandas list={open} />
+      </Card>
+    </>
+  );
+}
+
+function OwnerDashboard() {
   const closed = comandas.filter((c) => c.status === "fechada");
   const open = comandas.filter((c) => c.status === "aberta");
   const revenue = closed.reduce((sum, c) => sum + comandaTotal(c), 0);
@@ -11,11 +63,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      <PageHeader
-        title="Painel"
-        subtitle="Hoje, terça-feira 29/09"
-        action={<ButtonLink href="/comandas/nova">+ Nova comanda</ButtonLink>}
-      />
+      <PageHeader title="Painel" subtitle={today} action={newComandaButton} />
 
       <div className={styles.stats}>
         <Stat label="Faturado hoje" value={formatBRL(revenue)} />
@@ -32,19 +80,7 @@ export default function DashboardPage() {
       </Card>
 
       <Card title="Comandas abertas">
-        <ul className={styles.list}>
-          {open.map((c) => (
-            <li key={c.id}>
-              <Link href={`/comandas/${c.id}`} className={styles.row}>
-                <span className={styles.rowMain}>
-                  <span>#{c.number} · {clientName(c.clientId)}</span>
-                  <span className={styles.rowMeta}>Aberta às {c.openedAt} · {c.items.length} itens</span>
-                </span>
-                <strong><Money cents={comandaTotal(c)} /></strong>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <OpenComandas list={open} />
       </Card>
 
       <Card title="Estoque baixo">
@@ -63,4 +99,8 @@ export default function DashboardPage() {
       </Card>
     </>
   );
+}
+
+export default async function DashboardPage() {
+  return (await getDemoRole()) === "barber" ? <BarberDashboard /> : <OwnerDashboard />;
 }

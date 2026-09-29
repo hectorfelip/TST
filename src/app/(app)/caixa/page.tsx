@@ -1,8 +1,10 @@
 import { Badge, ButtonLink, Card, Money, Note, PageHeader, styles } from "@/components/ui";
-import { cashRegister, paymentMethodLabel, type PaymentMethod } from "@/prototype/mock-data";
+import { cashRegister, expectedCashInDrawer, paymentMethodLabel, receivedByMethod, type PaymentMethod } from "@/prototype/mock-data";
+import { OwnerOnly } from "@/prototype/owner-only";
 
-export default function CashRegisterPage() {
-  const cashInDrawer = cashRegister.movements.reduce((sum, m) => sum + m.amount, 0);
+function CashRegisterPageContent() {
+  const cashInDrawer = expectedCashInDrawer(cashRegister.movements);
+  const byMethod = receivedByMethod(cashRegister.movements);
 
   return (
     <>
@@ -14,10 +16,10 @@ export default function CashRegisterPage() {
 
       <Card title="Recebido hoje por forma de pagamento">
         <ul className={styles.list}>
-          {(Object.keys(cashRegister.byMethod) as PaymentMethod[]).map((m) => (
+          {(Object.keys(byMethod) as PaymentMethod[]).map((m) => (
             <li key={m} className={styles.row}>
               <span>{paymentMethodLabel[m]}</span>
-              <Money cents={cashRegister.byMethod[m]} />
+              <Money cents={byMethod[m]} />
             </li>
           ))}
         </ul>
@@ -37,7 +39,7 @@ export default function CashRegisterPage() {
             <li key={i} className={styles.row}>
               <span className={styles.rowMain}>
                 <span>{m.description}</span>
-                <span className={styles.rowMeta}>{m.time}</span>
+                <span className={styles.rowMeta}>{m.time} · {paymentMethodLabel[m.method]}</span>
               </span>
               <strong><Money cents={m.amount} /></strong>
             </li>
@@ -52,5 +54,13 @@ export default function CashRegisterPage() {
       <ButtonLink href="/caixa" block>Fechar caixa</ButtonLink>
       <Note>Ao fechar, a pessoa conta o dinheiro da gaveta e o sistema mostra a diferença.</Note>
     </>
+  );
+}
+
+export default function CashRegisterPage() {
+  return (
+    <OwnerOnly>
+      <CashRegisterPageContent />
+    </OwnerOnly>
   );
 }
