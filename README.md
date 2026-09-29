@@ -9,9 +9,19 @@ Each step is reviewed and approved before the next one starts.
 
 | Step | Topic | Document | Status |
 |------|-------|----------|--------|
-| 1 | Structure | [docs/01-structure.md](docs/01-structure.md) | Draft — waiting for approval |
+| 1 | Structure | [docs/01-structure.md](docs/01-structure.md) | Decisions answered — waiting for final approval |
 | 2 | Interface | — | Not started |
 | 3 | Rules | — | Not started |
 | 4 | Data | — | Not started |
 | 5 | Communication | — | Not started |
 | 6 | Review | — | Not started |
+
+## Running locally
+
+```bash
+npm install
+npm run dev        # http://localhost:3000
+npm test           # unit tests
+npm run typecheck
+npm run lint
+```

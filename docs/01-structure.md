@@ -1,6 +1,6 @@
-# Step 1 — Structure (DRAFT, waiting for approval)
+# Step 1 — Structure (v2, waiting for final approval)
 
-> Status: **draft**. Nothing in this step is final until the owner approves it.
+> Status: **decisions answered, waiting for final approval.**
 > Next step (2 — Interface) only starts after approval.
 
 ## 1. What problem are we solving?
@@ -40,19 +40,20 @@ With the service order, **one action** ("close the comanda") updates everything:
                     │ close + payment
       ┌─────────────┼──────────────┐
       ▼             ▼              ▼
-  Finance        Stock          Commission
-  (money in)   (product out)   (barber earns)
+  Finance        Stock        Barber revenue
+  (money in)   (product out)  (commission: v2)
 ```
 
 | # | Module | What it does in the MVP | Depends on |
 |---|--------|------------------------|------------|
-| 0 | **Auth / Users** | Login. Two roles: *owner* (sees everything) and *barber* (sees own comandas and own commission). | — |
+| 0a | **Barbershops (tenants)** | Each barbershop is a separate customer of the SaaS. Created manually by the platform admin in the MVP (no self sign-up, no billing yet). | — |
+| 0b | **Auth / Users** | Login. Two roles: *owner* (sees everything) and *barber* (sees only own comandas and own revenue). | — |
 | 1 | **Clients** | Name, phone, notes, history of visits. | — |
-| 2 | **Employees** | Name, role, commission % per service/product, active or not. | Auth |
-| 3 | **Services** | Catalog: name, price, average time, commission %. | — |
+| 2 | **Employees** | Name, role, active or not. *(Commission calculation is out of the MVP — see decision 5.)* | Auth |
+| 3 | **Services** | Catalog: name, price, average time. | — |
 | 4 | **Stock** | Products (for sale or for internal use), quantity, minimum quantity alert, stock movements. | — |
 | 5 | **Comanda** *(new)* | Open → add services/products → close with payment method. | 1, 2, 3, 4 |
-| 6 | **Finance** | Cash register (open/close of the day), money in, money out (expenses), commission report, simple monthly report. | 5 |
+| 6 | **Finance** | Cash register (open/close of the day), money in, money out (expenses), simple monthly report, revenue **per barber** (no commission math). | 5 |
 
 ### Out of the MVP (on purpose)
 
@@ -64,6 +65,8 @@ These are good ideas, but each one could double the work. They wait for version 
 - Card machine or PIX integration (the MVP only **records** the payment method)
 - More than one unit (branch)
 - Loyalty program, subscriptions ("clube de assinatura")
+- **Commission calculation** (decision 5) — but the data needed for it is saved from day one
+- Self sign-up and monthly billing of barbershops (SaaS billing)
 
 ## 3. Architecture
 
@@ -88,7 +91,7 @@ The rules layer does **not** know about screens or about the database. This is
 what lets us test rules alone and change the screen without breaking the money
 calculations.
 
-## 4. Proposed stack (needs your decision — see section 7)
+## 4. Stack (approved: TypeScript + Next.js)
 
 | Part | Recommendation | Why |
 |------|---------------|-----|
@@ -105,7 +108,7 @@ the first version, but the screens are less friendly on a phone.
 **Rule for choosing:** pick the language that **you** can read and maintain. A
 "better" stack that you cannot maintain is worse.
 
-## 5. Folder structure (if the recommended stack is approved)
+## 5. Folder structure (created in the repository)
 
 ```
 /docs                 ← one document per step (this file is step 1)
@@ -113,6 +116,7 @@ the first version, but the screens are less friendly on a phone.
 /src
   /app                ← screens and routes (step 2)
   /modules
+    /barbershops      ← tenants
     /auth
     /clients
     /employees
@@ -124,7 +128,7 @@ the first version, but the screens are less friendly on a phone.
         rules/        ← business rules, pure code, fully tested (step 3)
         data/         ← database access (step 4)
         api/          ← how screens talk to the server (step 5)
-  /shared             ← money helpers, dates, validation
+  /shared             ← money.ts (cents), tenant.ts (TenantContext)
 /tests
 ```
 
@@ -141,18 +145,24 @@ the first version, but the screens are less friendly on a phone.
 | **Personal data (LGPD)** | Client name and phone are personal data under Brazilian law. | Store the minimum; allow deleting a client on request. |
 | **No real user yet** | Building without talking to a barbershop owner = guessing. | Before step 2, talk to at least one owner and confirm the 4 questions of section 1. |
 
-## 7. Open decisions (owner must answer before approval)
+## 7. Decisions (answered by the owner)
 
-1. **Who is this for?** One barbershop (yours or a client's) **or** a product to
-   sell to many barbershops (SaaS)? If SaaS, every table needs a
-   `barbershop_id` from day one — adding it later is painful.
-2. **Stack:** TypeScript/Next.js (recommended) or Python/Django? Which
-   language do you already know?
-3. **Is the Comanda module approved** as the center of the system?
-4. **What does step 5 "Communication" mean?** (a) API between screen and
-   server, (b) messages to clients (WhatsApp/SMS), or (c) both?
-5. **Commission model:** is commission a % per service, a % per barber, or
-   both? (This changes the data model in step 4.)
+| # | Question | Answer | Consequence in the structure |
+|---|----------|--------|------------------------------|
+| 1 | Who is it for? | **SaaS, many barbershops.** | Multi-tenant from day one: every table has `barbershop_id`; every data access receives a `TenantContext` (`src/shared/tenant.ts`). |
+| 2 | Stack? | **TypeScript + Next.js.** | Project created with Next.js 16, TypeScript strict mode, ESLint, Vitest. Prisma is added in step 4. |
+| 3 | Comanda as the center? | **Yes.** | `service-orders` module is the only module allowed to write to finance and stock together. |
+| 4 | Meaning of "Communication"? | **(a) API between screens and server.** | Step 5 defines the `api/` folder of each module. WhatsApp stays out. |
+| 5 | Commission model? | **Depends on the shop — out of the MVP.** | No commission rules. But each comanda item stores **which barber** did it and the **price at that moment**, so commission can be calculated later, even for old comandas. |
+
+### Devil's advocate on the answers
+
+| Answer | Weak point | Solution adopted |
+|--------|-----------|------------------|
+| SaaS | The worst possible bug is **one shop seeing another shop's data** (data leak). It also makes you a data processor under LGPD. | Tenant filter is mandatory in the data layer, and step 4 will add automatic tests that try to read another tenant's data. Later: PostgreSQL Row Level Security as a second lock. |
+| SaaS, but the MVP is shown to **one** owner | Building sign-up, billing and plans now would be wasted work before feedback. | Tenants are created manually by you. No billing, no plans in the MVP. |
+| Commission out | It is the #1 pain of many shops. The owner in the demo will probably ask for it. | Data is ready (barber + price per item). Adding the rule later is a step-3 change, not a database redesign. Show "revenue per barber" in the demo as a first answer. |
+| Feedback from **one** owner | One owner is not the market. His habits can become "rules" that do not fit other shops — dangerous for a SaaS. | After the demo, talk to 3–5 other shops before building new features. Things that change from shop to shop become **settings**, not fixed code. |
 
 ## 8. My verification of this step
 
@@ -160,7 +170,8 @@ the first version, but the screens are less friendly on a phone.
 - [x] Each module has a clear responsibility and a clear dependency direction (no cycles).
 - [x] MVP scope has an explicit "out" list.
 - [x] Risks listed with a solution for each one.
-- [ ] Owner answered the 5 open decisions.
+- [x] Owner answered the 5 open decisions.
+- [x] Project skeleton created: `npm test` (5 tests), `npm run typecheck`, `npm run lint` and `npm run build` all pass.
 - [ ] Owner approved this document.
 
 ## Glossary
