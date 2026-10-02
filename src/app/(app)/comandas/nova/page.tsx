@@ -1,22 +1,14 @@
-import { clients, comandas, employees, products, services } from "@/prototype/mock-data";
-import { getDemoRole, getDemoUserId } from "@/prototype/demo-role";
-import { NewComandaFlow } from "./new-comanda-flow";
+import { PageHeader } from "@/components/ui";
+import { loadClientOptions } from "@/modules/clients/api/queries";
+import { NewComandaPicker } from "./new-comanda-picker";
 
 export default async function NewComandaPage() {
-  const nextNumber = Math.max(...comandas.map((c) => c.number)) + 1;
-  const role = await getDemoRole();
-  const currentUserId = await getDemoUserId();
-
+  // Phones are sent only when the person is the owner (decision B): for a barber the list has names only.
+  const clients = await loadClientOptions();
   return (
-    <NewComandaFlow
-      number={nextNumber}
-      role={role}
-      currentUserId={currentUserId}
-      barbers={employees.filter((e) => e.active).map(({ id, name }) => ({ id, name }))}
-      // Decision B: phone numbers are never sent to a barber's browser.
-      clients={clients.map(({ id, name, phone }) => ({ id, name, phone: role === "owner" ? phone : "" }))}
-      services={services.filter((s) => s.favorite && s.active)}
-      products={products.filter((p) => p.use === "venda").map(({ id, name, price, stock }) => ({ id, name, price, stock }))}
-    />
+    <>
+      <PageHeader title="Nova comanda" />
+      <NewComandaPicker clients={clients} />
+    </>
   );
 }

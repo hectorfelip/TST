@@ -1,16 +1,18 @@
 "use client";
 
 /**
- * PROTOTYPE ONLY (step 3). Closing the register with local state; nothing is
- * saved. It follows the rules in src/modules/service-orders/rules/day-close.ts:
- * the owner sees EVERY unpaid service, decides each comanda explicitly, and
- * each decision (and the final closing) has a confirmation step.
+ * Closing the register. It follows the rules in src/modules/service-orders/rules/day-close.ts:
+ * the owner sees EVERY unpaid service, decides each comanda explicitly, and each decision
+ * (and the final closing) has a confirmation step. Nothing is saved until the last "Sim".
  */
 import { useState } from "react";
 import Link from "next/link";
+import { SubmitButton, useIdempotentAction } from "@/components/action-form";
 import { Badge, Card, Note, styles } from "@/components/ui";
+import { closeCashAction, type CloseCashSummary } from "@/modules/service-orders/api/actions";
+import type { DayEntryView as DayEntry } from "@/modules/service-orders/api/queries";
+import type { DayDecision } from "@/modules/service-orders/rules/day-close";
 import { formatBRL, toCents, type Cents } from "@/shared/money";
-import type { DayDecision, DayEntry } from "@/prototype/mock-data";
 
 /** `expiryDays = null`: this barbershop does not cancel pending comandas by itself. */
 const deadlineText = (expiryDays: number | null): string => (expiryDays === null ? "sem prazo" : `${expiryDays} ${expiryDays === 1 ? "dia" : "dias"}`);
@@ -60,7 +62,9 @@ export function CloseCashFlow({ expected, entries, expiryDays }: { expected: Cen
   const [reason, setReason] = useState("");
   const [decisions, setDecisions] = useState<Record<string, DayDecision>>({});
   const [asking, setAsking] = useState<{ id: string; option: DayDecision } | null>(null);
-  const [step, setStep] = useState<"form" | "summary" | "done">("form");
+  const [step, setStep] = useState<"form" | "summary">("form");
+  const { state, formAction, key } = useIdempotentAction<CloseCashSummary>(closeCashAction);
+  const done = state?.ok ? state.value : null;
 
   const countedParsed = parse(counted);
   const countedCents = typeof countedParsed === "number" ? countedParsed : null;
@@ -78,29 +82,48 @@ export function CloseCashFlow({ expected, entries, expiryDays }: { expected: Cen
   const chosen = (option: DayDecision) => entries.filter((e) => decisions[e.id] === option);
   const pendingTotal = chosen("keep_pending").reduce((sum, e) => sum + e.total, 0);
 
-  if (step === "done") {
+  if (done) {
     return (
       <Card title="Caixa fechado ✓">
-        <p>Esperado {formatBRL(expected)} · contado {formatBRL(countedCents ?? 0)}</p>
-        {needsReason && <Note>Diferença de {formatBRL(difference ?? 0)}: {reason}</Note>}
-        <p>Ficam na gaveta para amanhã: {formatBRL(leftCents ?? 0)}</p>
-        {chosen("discard").length > 0 && <p>{chosen("discard").length} comanda(s) vazia(s) descartada(s).</p>}
-        {chosen("no_show").length > 0 && <p>{chosen("no_show").length} marcada(s) como não compareceu (não é cancelamento).</p>}
-        {chosen("keep_pending").length > 0 && (
+        <p>Esperado {formatBRL(done.expected)} · contado {formatBRL(done.counted)}</p>
+        {done.difference !== 0 && <Note>Diferença de {formatBRL(done.difference)}: {reason}</Note>}
+        <p>Ficam na gaveta para amanhã: {formatBRL(done.left)}</p>
+        {done.discarded > 0 && <p>{done.discarded} comanda(s) vazia(s) descartada(s).</p>}
+        {done.noShows > 0 && <p>{done.noShows} marcada(s) como não compareceu (não é cancelamento).</p>}
+        {done.pending > 0 && (
           <p>
-            {chosen("keep_pending").length} comanda(s) pendente(s) ({formatBRL(pendingTotal)}):{" "}
+            {done.pending} comanda(s) pendente(s) ({formatBRL(pendingTotal)}):{" "}
             {expiryDays === null ? "sem prazo, ficam até serem pagas ou canceladas por você." : `vencem em ${deadlineText(expiryDays)}.`}
           </p>
         )}
-        {chosen("reviewed").length > 0 && <p>{chosen("reviewed").length} falta(s) com itens conferida(s).</p>}
-        <Note>Protótipo: nada foi salvo.</Note>
+        {done.reviewed > 0 && <p>{done.reviewed} falta(s) com itens conferida(s).</p>}
         <Link href="/" className={`${styles.button} ${styles.buttonBlock}`}>Voltar ao painel</Link>
       </Card>
     );
   }
 
+  // Everything below is ONE form: nothing is sent until the last "Sim, fechar o caixa".
+  const wrap = (children: React.ReactNode) => (
+    <form
+      action={formAction}
+      style={{ display: "contents" }}
+      onKeyDown={(e) => {
+        // Enter inside a field must not send the form before the owner reviewed it.
+        if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") e.preventDefault();
+      }}
+    >
+      <input type="hidden" name="key" value={key} />
+      <input type="hidden" name="counted" value={counted} />
+      <input type="hidden" name="left" value={left} />
+      <input type="hidden" name="reason" value={needsReason ? reason : ""} />
+      <input type="hidden" name="decisions" value={JSON.stringify(decisions)} />
+      {children}
+      {state && !state.ok && <p role="alert" className={styles.error}>{state.message}</p>}
+    </form>
+  );
+
   if (step === "summary") {
-    return (
+    return wrap(
       <>
         <Card title="Confirme o fechamento do caixa">
           <div className={styles.row}><span>Dinheiro contado</span><strong>{formatBRL(countedCents ?? 0)}</strong></div>
@@ -129,16 +152,15 @@ export function CloseCashFlow({ expected, entries, expiryDays }: { expected: Cen
           </Card>
         )}
         <div className={styles.buttonGrid}>
-          <button type="button" className={styles.button} onClick={() => setStep("done")}>Sim, fechar o caixa</button>
+          <SubmitButton name="confirmed" value="yes">Sim, fechar o caixa</SubmitButton>
           <button type="button" className={styles.buttonSecondary} onClick={() => setStep("form")}>Voltar</button>
         </div>
-      </>
+      </>,
     );
   }
 
-  return (
+  return wrap(
     <>
-      <Note>Simulação do fim do expediente: todos os agendamentos de hoje já passaram do horário.</Note>
 
       <Card title="1. Conte o dinheiro da gaveta">
         <div className={styles.row}><span>Esperado pelo sistema</span><strong>{formatBRL(expected)}</strong></div>
@@ -249,6 +271,6 @@ export function CloseCashFlow({ expected, entries, expiryDays }: { expected: Cen
         Revisar e fechar caixa
       </button>
       <Link href="/caixa" className={`${styles.buttonSecondary} ${styles.buttonBlock}`}>Voltar</Link>
-    </>
+    </>,
   );
 }

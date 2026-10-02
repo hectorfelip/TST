@@ -16,7 +16,7 @@ export async function createWorld(db: TestDb, name = "Barbearia Teste") {
   const corte = await addService(db, shop, "Corte", 4500);
   const barba = await addService(db, shop, "Barba", 3500);
   const pomada = await addProduct(db, shop, "Pomada", 4500);
-  await addPurchase(db, shop, pomada, 2); // 2 in stock, as in the prototype
+  await addPurchase(db, shop, pomada, 2); // 2 in stock, as in the step 2 mock-up
   const marcos = await addClient(db, shop, "Marcos Lima", "11977772222");
   const andre = await addClient(db, shop, "André Souza", "11988881111");
   return { shop, owner: shop.owner, rafael, diego, corte, barba, pomada, marcos, andre };

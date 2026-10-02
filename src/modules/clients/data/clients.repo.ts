@@ -57,3 +57,11 @@ export async function visitsOf(tx: Tx, clientId: string): Promise<ClientVisit[]>
 export async function noShowCountOf(tx: Tx, clientId: string): Promise<number> {
   return (await tx.one<{ n: number }>(`SELECT count(*)::int AS n FROM comandas WHERE client_id = $1 AND status = 'no_show'`, [clientId])).n;
 }
+
+/** When each client was last paid for (clients without a paid visit are absent). */
+export async function lastVisitByClient(tx: Tx): Promise<Map<string, Date>> {
+  const rows = await tx.query<{ client_id: string; last: Date }>(
+    `SELECT client_id, max(closed_at) AS last FROM comandas WHERE status = 'closed' AND client_id IS NOT NULL GROUP BY client_id`,
+  );
+  return new Map(rows.map((r) => [r.client_id, r.last]));
+}

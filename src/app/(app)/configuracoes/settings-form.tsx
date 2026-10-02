@@ -1,13 +1,14 @@
 "use client";
 
 /**
- * PROTOTYPE ONLY (step 3). The option of the barbershop for pending comandas.
+ * The option of the barbershop for pending comandas.
  * Rules: R-SET-01 (option + custom deadline) and R-SET-02 (only the owner,
  * audited), in src/modules/barbershops/rules/settings.ts.
  */
 import { useState } from "react";
 import { Card, Note, styles } from "@/components/ui";
-import { savePendingSettings } from "@/prototype/actions";
+import { ActionForm, SubmitButton } from "@/components/action-form";
+import { saveSettingsAction } from "@/modules/barbershops/api/actions";
 
 type Pending = { number: number; client: string; daysAgo: number };
 
@@ -18,7 +19,6 @@ export function SettingsForm({ initialEnabled, initialDays, pending }: { initial
   const [enabled, setEnabled] = useState(initialEnabled);
   const [daysText, setDaysText] = useState(String(initialDays));
   const [step, setStep] = useState<"form" | "confirm" | "done">("form");
-  const [error, setError] = useState<string | null>(null);
 
   const days = Number(daysText);
   const daysValid = daysText.trim() !== "" && Number.isInteger(days) && days >= MIN && days <= MAX;
@@ -37,7 +37,7 @@ export function SettingsForm({ initialEnabled, initialDays, pending }: { initial
             ? `Comandas pendentes são canceladas automaticamente depois de ${savedDays} ${savedDays === 1 ? "dia" : "dias"}.`
             : "Comandas pendentes não são canceladas sozinhas: esperam até você receber ou cancelar."}
         </p>
-        <Note>Registrado quem mudou e de quê → para quê. No protótipo, as outras telas já usam essa escolha.</Note>
+        <Note>Registrado quem mudou e de quê → para quê.</Note>
       </Card>
     );
   }
@@ -58,21 +58,18 @@ export function SettingsForm({ initialEnabled, initialDays, pending }: { initial
             e {wouldCancel.length === 1 ? "será cancelada" : "serão canceladas"} na próxima rotina diária.
           </Note>
         )}
-        {error && <span className={styles.error}>{error}</span>}
-        <div className={styles.buttonGrid}>
-          <button
-            type="button"
-            className={styles.button}
-            onClick={async () => {
-              const result = await savePendingSettings(enabled, savedDays);
-              if (result.ok) setStep("done");
-              else setError(result.message);
-            }}
-          >
-            Sim, salvar
-          </button>
-          <button type="button" className={styles.buttonSecondary} onClick={() => setStep("form")}>Voltar</button>
-        </div>
+        <ActionForm action={async (previous, formData) => {
+          const result = await saveSettingsAction(previous, formData);
+          if (result.ok) setStep("done");
+          return result;
+        }}>
+          <input type="hidden" name="enabled" value={enabled ? "yes" : "no"} />
+          <input type="hidden" name="days" value={String(savedDays)} />
+          <div className={styles.buttonGrid}>
+            <SubmitButton>Sim, salvar</SubmitButton>
+            <button type="button" className={styles.buttonSecondary} onClick={() => setStep("form")}>Voltar</button>
+          </div>
+        </ActionForm>
       </Card>
     );
   }

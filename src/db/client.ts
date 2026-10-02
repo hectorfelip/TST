@@ -87,6 +87,15 @@ export function withTenant<T>(pool: Pool, ctx: Pick<TenantContext, "barbershopId
 }
 
 /**
+ * A transaction with NO barbershop, on the application connection: only for the few things that
+ * happen before anybody is identified (logging in). Row Level Security still applies, so a query on
+ * a normal table sees nothing; only the SECURITY DEFINER functions of migration 003 can answer.
+ */
+export function withPublic<T>(pool: Pool, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return inTransaction(pool, async () => undefined, fn);
+}
+
+/**
  * A transaction WITHOUT a barbershop: for the owner connection used by
  * migrations and admin scripts. The application never uses it.
  */

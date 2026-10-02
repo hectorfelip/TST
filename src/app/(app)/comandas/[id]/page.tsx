@@ -1,150 +1,190 @@
 import { notFound } from "next/navigation";
 import { Badge, ButtonLink, Card, Money, Note, PageHeader, styles } from "@/components/ui";
-import { ConfirmAction } from "@/components/confirm-action";
-import {
-  appointmentLabel,
-  appointmentTimePassed,
-  clientName,
-  comandas,
-  comandaTotal,
-  employeeName,
-  expiryText,
-  isComandaOf,
-  pendingDaysLeftOf,
-  products,
-  services,
-} from "@/prototype/mock-data";
-import { DEMO_BARBER_ID, getDemoRole } from "@/prototype/demo-role";
-import { NoAccess } from "@/prototype/owner-only";
-import { getDemoExpiryDays } from "@/prototype/demo-settings";
+import { ConfirmForm } from "@/components/confirm-form";
+import { ActionForm, SubmitButton } from "@/components/action-form";
+import { ItemButtons } from "@/components/item-buttons";
+import { NoAccess } from "@/components/no-access";
+import { cancelComandaAction, changePaymentMethodAction, discardComandaAction, noShowAction, removeItemAction } from "@/modules/service-orders/api/actions";
+import { loadComandaPage } from "@/modules/service-orders/api/queries";
+import { expiryText } from "@/modules/service-orders/api/views";
+import { requireAuth } from "@/server/auth";
 
-const statusLabel = { aberta: "Aberta", fechada: "Fechada", cancelada: "Cancelada", nao_compareceu: "Não compareceu" } as const;
+const statusLabel = { open: "Aberta", closed: "Fechada", cancelled: "Cancelada", discarded: "Descartada", no_show: "Não compareceu" } as const;
+const methodLabel = { cash: "Dinheiro", pix: "Pix", debit: "Débito", credit: "Crédito" } as const;
 
 export default async function ComandaPage(props: PageProps<"/comandas/[id]">) {
   const { id } = await props.params;
-  const comanda = comandas.find((c) => c.id === id);
-  if (!comanda) notFound();
-  const role = await getDemoRole();
-  if (role === "barber" && !isComandaOf(comanda, DEMO_BARBER_ID)) return <NoAccess />;
+  const search = await props.searchParams;
+  const { ctx } = await requireAuth();
+  const page = await loadComandaPage(id);
+  if (page.kind === "missing") notFound();
+  if (page.kind === "forbidden") return <NoAccess />;
 
-  const isOpen = comanda.status === "aberta";
+  const { comanda, role, canEdit } = page;
+  const isOpen = comanda.status === "open";
   const isEmpty = comanda.items.length === 0;
-  const expiryDays = await getDemoExpiryDays();
-  const isPending = comanda.pendingDaysAgo !== undefined;
-  const pendingLeft = pendingDaysLeftOf(comanda, expiryDays);
-  const favorites = services.filter((s) => s.favorite && s.active);
-  const forSale = products.filter((p) => p.use === "venda");
+  const isOwner = role === "owner";
 
   return (
     <>
       <PageHeader
         title={`Comanda #${comanda.number}`}
-        subtitle={`${clientName(comanda.clientId)} · aberta ${comanda.openedAt}`}
-        action={<Badge tone={isOpen ? "ok" : comanda.status === "nao_compareceu" ? "warning" : "neutral"}>{statusLabel[comanda.status]}</Badge>}
+        subtitle={`${comanda.clientName} · aberta ${comanda.openedAtLabel}`}
+        action={<Badge tone={isOpen ? "ok" : comanda.status === "no_show" ? "warning" : "neutral"}>{statusLabel[comanda.status]}</Badge>}
       />
+
+      {search.paga === "1" && comanda.status === "closed" && (
+        <Card>
+          <p role="status"><strong>✓ Pagamento registrado</strong></p>
+          {comanda.paymentChange !== null && comanda.paymentChange > 0 && <p>Troco: <Money cents={comanda.paymentChange} /></p>}
+        </Card>
+      )}
 
       {comanda.appointment && (
         <Card>
           <p>
-            <strong>Agendado: {appointmentLabel(comanda)}</strong> · com {employeeName(comanda.appointment.barberId)}
+            <strong>Agendado: {comanda.appointment.label}</strong> · com {comanda.appointment.barberName}
           </p>
         </Card>
       )}
-      {isPending && (
+      {comanda.pending && (
         <Card>
           <p>
-            <Badge tone="warning">Pendente{pendingLeft !== null && ` · ${expiryText(pendingLeft)}`}</Badge>
+            <Badge tone="warning">Pendente{comanda.pending.daysLeft !== null && ` · ${expiryText(comanda.pending.daysLeft)}`}</Badge>
           </p>
           <Note>
-            {pendingLeft !== null
+            {comanda.pending.daysLeft !== null
               ? 'Se não for paga até lá, é cancelada automaticamente. Para receber, use "Fechar comanda".'
               : 'Esta barbearia não cancela pendentes sozinha: fica aqui até ser paga ou cancelada pelo dono. Para receber, use "Fechar comanda".'}
           </Note>
         </Card>
       )}
-      {comanda.status === "nao_compareceu" && (
+      {comanda.status === "no_show" && (
         <Note>Marcada como não compareceu. Isso não é um cancelamento: a falta fica registrada e o dono confere no fechamento do caixa.</Note>
       )}
+      {comanda.status === "cancelled" && comanda.cancellationReason && <Note>Cancelada. Motivo: {comanda.cancellationReason}</Note>}
 
       <Card title="Itens">
-        {comanda.items.length === 0 ? (
-          <p className={styles.rowMeta}>Nenhum item ainda. Toque em um serviço abaixo para adicionar.</p>
+        {isEmpty ? (
+          <p className={styles.rowMeta}>Nenhum item ainda.{canEdit ? " Toque em um serviço abaixo para adicionar." : ""}</p>
         ) : (
           <ul className={styles.list}>
-            {comanda.items.map((item, index) => (
-              <li key={index} className={styles.row}>
+            {comanda.items.map((item) => (
+              <li key={item.id} className={styles.row}>
                 <span className={styles.rowMain}>
-                  <span>{item.name}</span>
-                  <span className={styles.rowMeta}>{item.kind === "servico" ? "Serviço" : "Produto"} · {employeeName(item.barberId)}</span>
+                  <span>{item.quantity > 1 && `${item.quantity}× `}{item.name}</span>
+                  <span className={styles.rowMeta}>
+                    {item.kind === "service" ? "Serviço" : "Produto"} · {item.barberName}
+                    {item.soldWithoutStock && " · sem estoque no sistema (confirmado)"}
+                  </span>
                 </span>
-                <strong><Money cents={item.price} /></strong>
+                <span>
+                  <strong><Money cents={item.lineTotal} /></strong>
+                  {canEdit && (
+                    <ActionForm action={removeItemAction}>
+                      <input type="hidden" name="comandaId" value={comanda.id} />
+                      <input type="hidden" name="itemId" value={item.id} />
+                      <button type="submit" className={styles.iconButton} aria-label={`Remover ${item.name}`}>×</button>
+                    </ActionForm>
+                  )}
+                </span>
               </li>
             ))}
           </ul>
         )}
+        {comanda.discount > 0 && (
+          <div className={styles.row}><span>Desconto</span><span>− <Money cents={comanda.discount} /></span></div>
+        )}
         <div className={styles.total}>
           <span>Total</span>
-          <Money cents={comandaTotal(comanda)} />
+          <Money cents={comanda.total} />
         </div>
+        {comanda.paymentMethod && <p className={styles.rowMeta}>Pago em {methodLabel[comanda.paymentMethod]}.</p>}
+        {comanda.note && <Note>Observação: {comanda.note}</Note>}
       </Card>
 
-      {isOpen && (
+      {isOpen && canEdit && (
         <>
-          <Card title="Adicionar serviço">
-            <div className={styles.buttonGrid}>
-              {favorites.map((s) => (
-                <ButtonLink key={s.id} href={`/comandas/${comanda.id}`} variant="secondary" stacked>
-                  {s.name}
-                  <small><Money cents={s.price} /></small>
-                </ButtonLink>
-              ))}
-            </div>
-            <Note>Os serviços favoritos aparecem aqui. Os outros ficam na busca.</Note>
-          </Card>
+          <ItemButtons
+            comandaId={comanda.id}
+            barbers={page.barbers}
+            defaultBarberId={ctx.userId}
+            canPickBarber={isOwner}
+            services={page.services}
+            products={page.forSale}
+          />
 
-          <Card title="Adicionar produto">
-            <div className={styles.buttonGrid}>
-              {forSale.map((p) => (
-                <ButtonLink key={p.id} href={`/comandas/${comanda.id}`} variant="secondary" stacked>
-                  {p.name}
-                  <small><Money cents={p.price} /></small>
-                </ButtonLink>
-              ))}
-            </div>
-          </Card>
-
-          {!isEmpty && <ButtonLink href={`/comandas/${comanda.id}/fechar`} block>Fechar comanda</ButtonLink>}
+          {!isEmpty && (
+            <>
+              <ButtonLink href={`/comandas/${comanda.id}/fechar`} block>Fechar comanda</ButtonLink>
+              {!page.registerOpen && <Note>O caixa está fechado. Abra o caixa para receber o pagamento.</Note>}
+            </>
+          )}
 
           {comanda.appointment && (
-            <ConfirmAction
+            <ConfirmForm
+              action={noShowAction}
+              fields={{ comandaId: comanda.id }}
               label="Cliente não compareceu"
-              question={`Marcar ${clientName(comanda.clientId)} como não compareceu? A comanda sai da agenda do dia e a falta fica registrada. Não é um cancelamento.`}
+              question={`Marcar ${comanda.clientName} como não compareceu? A comanda sai da agenda do dia e a falta fica registrada. Não é um cancelamento.`}
               confirmLabel="Sim, não compareceu"
-              doneMessage="Marcada como não compareceu. Saiu da agenda de hoje."
-              disabledHint={appointmentTimePassed(comanda) ? undefined : `Só depois do horário agendado (${comanda.appointment.time}).`}
+              disabledHint={comanda.appointment.timePassed ? undefined : `Só depois do horário agendado (${comanda.appointment.time}).`}
             />
           )}
           {isEmpty && !comanda.appointment && (
-            <ConfirmAction
+            <ConfirmForm
+              action={discardComandaAction}
+              fields={{ comandaId: comanda.id }}
               label="Descartar comanda vazia"
               question="Descartar esta comanda vazia? Não precisa de motivo."
               confirmLabel="Sim, descartar"
-              doneMessage="Comanda descartada."
             />
           )}
-          {role === "owner" && !isEmpty && (
-            <ConfirmAction
+          {isOwner && !isEmpty && (
+            <ConfirmForm
+              action={cancelComandaAction}
+              fields={{ comandaId: comanda.id }}
               variant="danger"
               label="Cancelar comanda"
               question={`Cancelar a comanda #${comanda.number}? Fica registrado quem cancelou e por quê.`}
               confirmLabel="Sim, cancelar"
-              doneMessage="Comanda cancelada."
-              reasonRequired
+              reasonLabel="Motivo"
             />
           )}
-          {role === "barber" && !isEmpty && (
+          {!isOwner && !isEmpty && (
             <Note>Só o dono cancela. Cliente não veio? Use &quot;Cliente não compareceu&quot;. Lançou um item errado? Remova o seu item.</Note>
           )}
+        </>
+      )}
+
+      {isOwner && comanda.status === "closed" && (
+        <>
+          <Card title="Corrigir forma de pagamento">
+            <ActionForm action={changePaymentMethodAction} successMessage="Forma de pagamento corrigida.">
+              <input type="hidden" name="comandaId" value={comanda.id} />
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="method">Forma correta</label>
+                <select id="method" name="method" className={styles.input} defaultValue={comanda.paymentMethod ?? "pix"}>
+                  {Object.entries(methodLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </div>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="why">Motivo (obrigatório)</label>
+                <input id="why" name="reason" className={styles.input} placeholder="Ex.: o cliente pagou no Pix, não no dinheiro" />
+              </div>
+              <SubmitButton variant="secondary">Corrigir</SubmitButton>
+            </ActionForm>
+            <Note>Só é possível enquanto o caixa do dia está aberto. Depois do fechamento o dia fica selado.</Note>
+          </Card>
+          <ConfirmForm
+            action={cancelComandaAction}
+            fields={{ comandaId: comanda.id }}
+            variant="danger"
+            label="Cancelar comanda paga"
+            question={`Cancelar a comanda #${comanda.number} já paga? O dinheiro e os produtos voltam com lançamentos de estorno no caixa atual.`}
+            confirmLabel="Sim, cancelar"
+            reasonLabel="Motivo"
+          />
         </>
       )}
     </>

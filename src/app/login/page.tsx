@@ -1,18 +1,15 @@
-import { ButtonLink, Card, styles } from "@/components/ui";
+import { redirect } from "next/navigation";
+import { Card, styles } from "@/components/ui";
+import { getAuth } from "@/server/auth";
+import { LoginForm } from "./login-form";
 
-export default function LoginPage() {
+export default async function LoginPage(props: PageProps<"/login">) {
+  if (await getAuth()) redirect("/");
+  const search = await props.searchParams;
   return (
     <main className={styles.main} style={{ maxWidth: 400, paddingTop: 64 }}>
       <Card title="Entrar">
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="email">E-mail</label>
-          <input id="email" type="email" className={styles.input} autoComplete="email" />
-        </div>
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="password">Senha</label>
-          <input id="password" type="password" className={styles.input} autoComplete="current-password" />
-        </div>
-        <ButtonLink href="/" block>Entrar</ButtonLink>
+        <LoginForm passwordChanged={search.senha === "trocada"} />
       </Card>
     </main>
   );

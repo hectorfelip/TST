@@ -3,7 +3,7 @@
  * Needs DATABASE_ADMIN_URL (owner) and DATABASE_URL (app_user).
  */
 import { createPool } from "../src/db/client";
-import { seedDemo } from "../src/db/seed";
+import { DEMO_PASSWORD, seedDemo } from "../src/db/seed";
 
 const adminUrl = process.env.DATABASE_ADMIN_URL;
 const appUrl = process.env.DATABASE_URL;
@@ -15,7 +15,11 @@ const adminPool = createPool(adminUrl, { max: 1 });
 const appPool = createPool(appUrl, { max: 2 });
 try {
   const result = await seedDemo(adminPool, appPool, new Date(), process.env.SEED_EMAIL_SUFFIX ?? "");
-  console.log(`Demo barbershop created.\n  barbershop id: ${result.barbershopId}\n  owner e-mail:  carlos${process.env.SEED_EMAIL_SUFFIX ?? ""}@exemplo.com`);
+  const suffix = process.env.SEED_EMAIL_SUFFIX ?? "";
+  console.log(
+    `Demo barbershop created.\n  barbershop id: ${result.barbershopId}\n` +
+      `  owner:  carlos${suffix}@exemplo.com\n  barbers: rafael${suffix}@exemplo.com, diego${suffix}@exemplo.com\n  password (all of them): ${DEMO_PASSWORD}`,
+  );
 } finally {
   await appPool.end();
   await adminPool.end();

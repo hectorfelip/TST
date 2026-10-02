@@ -11,7 +11,9 @@ import { listAppointments, listComandas } from "@/modules/service-orders/data/co
 import { createTestDb, type TestDb } from "@/test/db/helpers";
 import { unwrap } from "@/shared/result";
 import { dayRange } from "@/shared/time";
-import { seedDemo } from "./seed";
+import { withPublic } from "@/db/client";
+import { authenticate } from "@/modules/auth/data/login";
+import { DEMO_PASSWORD, seedDemo } from "./seed";
 
 let db: TestDb;
 beforeAll(async () => {
@@ -22,6 +24,16 @@ afterAll(async () => {
 });
 
 describe("demo data", () => {
+  it("every active demo person can log in with the demo password, and gets the right role", async () => {
+    const s = await seedDemo(db.adminPool, db.appPool, new Date("2026-09-29T13:35:00Z"), "-login");
+    const who = async (email: string) => unwrap(await withPublic(db.appPool, (tx) => authenticate(tx, email, DEMO_PASSWORD)));
+    expect((await who("carlos-login@exemplo.com")).employeeId).toBe(s.owner.userId);
+    expect((await who("rafael-login@exemplo.com")).employeeId).toBe(s.rafael.userId);
+    expect((await who("diego-login@exemplo.com")).employeeId).toBe(s.diego.userId);
+    // Bruno was deactivated in the demo: he has a password but cannot log in
+    expect((await withPublic(db.appPool, (tx) => authenticate(tx, "bruno-login@exemplo.com", DEMO_PASSWORD))).ok).toBe(false);
+  });
+
   it("builds the day of the prototype: cash R$ 128,50, 3 paid comandas, today's and tomorrow's agenda, low stock", async () => {
     const now = new Date("2026-09-29T13:35:00Z"); // 10:35 in São Paulo
     const s = await seedDemo(db.adminPool, db.appPool, now);

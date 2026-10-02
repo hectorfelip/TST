@@ -9,6 +9,10 @@ export async function getSettings(tx: Tx): Promise<BarbershopSettings> {
   return { awayAfterDays: r.away_after_days, autoCancelPending: r.auto_cancel_pending, pendingExpiryDays: r.pending_expiry_days, timeZone: r.time_zone };
 }
 
+export async function getBarbershopName(tx: Tx): Promise<string> {
+  return (await tx.one<{ name: string }>("SELECT name FROM barbershops")).name;
+}
+
 export async function saveSettings(tx: Tx, s: BarbershopSettings): Promise<void> {
   await tx.query(
     `UPDATE barbershops SET away_after_days = $1, auto_cancel_pending = $2, pending_expiry_days = $3, time_zone = $4`,

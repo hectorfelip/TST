@@ -7,6 +7,7 @@ import {
   anonymizeClient,
   clientViewFor,
   createClient,
+  formatPhone,
   isAway,
   matchesSearch,
   normalizePhone,
@@ -98,5 +99,17 @@ describe("away clients (R-CLI-06)", () => {
     expect(isAway(new Date("2026-09-02T12:00:00-03:00"), NOW, DEFAULT_SETTINGS)).toBe(false); // 30 days
     expect(isAway(null, NOW, DEFAULT_SETTINGS)).toBe(false);
     expect(isAway(new Date("2026-09-20"), NOW, { awayAfterDays: 7 })).toBe(true);
+  });
+});
+
+describe("formatPhone", () => {
+  it("shows Brazilian numbers the way people write them", () => {
+    expect(formatPhone("11988881111")).toBe("(11) 98888-1111");
+    expect(formatPhone("1133334444")).toBe("(11) 3333-4444");
+  });
+  it("nothing in, nothing out; unexpected text is left alone", () => {
+    expect(formatPhone(null)).toBe("");
+    expect(formatPhone("")).toBe("");
+    expect(formatPhone("123")).toBe("123");
   });
 });

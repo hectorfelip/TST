@@ -1,13 +1,13 @@
 /**
- * Demo data: the same day the prototype shows, built through the REAL commands
- * (so it also proves that a whole day of work can be saved). Step 5 connects the
- * screens to it, replacing src/prototype/mock-data.ts.
+ * Demo data: a whole day of a barbershop (the day shown in the step 2 prototype), built through the
+ * REAL commands, so it also proves that a whole day of work can be saved. Log in with any of the
+ * demo e-mails and DEMO_PASSWORD. NEVER use it in a real barbershop.
  *
  * Needs both connections: the owner (to create the barbershop) and app_user
  * (everything else, exactly as the application does it).
  */
 import type { Pool } from "pg";
-import { createBarbershopWithOwner } from "@/db/admin";
+import { createBarbershopWithOwner, setPasswordAsAdmin } from "@/db/admin";
 import { withTenant } from "@/db/client";
 import { createClientCmd } from "@/modules/clients/data/commands";
 import { createEmployeeCmd, setEmployeeActiveCmd } from "@/modules/employees/data/commands";
@@ -21,13 +21,16 @@ import type { TenantContext } from "@/shared/tenant";
 
 const HOUR = 60 * 60 * 1000;
 
+/** The password of every demo person. It is public (it is in the source): demo data only. */
+export const DEMO_PASSWORD = "demonstracao-1";
+
 /**
  * E-mails are unique in the whole system, so a second demo barbershop needs a
  * different `emailSuffix` (e.g. "2" gives carlos2@exemplo.com).
  */
 export async function seedDemo(adminPool: Pool, appPool: Pool, now: Date = new Date(), emailSuffix = "") {
   const email = (name: string) => `${name}${emailSuffix}@exemplo.com`;
-  const { barbershopId, ownerId } = await createBarbershopWithOwner(adminPool, { name: "Barbearia Exemplo", ownerName: "Carlos", ownerEmail: email("carlos") });
+  const { barbershopId, ownerId } = await createBarbershopWithOwner(adminPool, { name: "Barbearia Exemplo", ownerName: "Carlos", ownerEmail: email("carlos"), ownerPassword: DEMO_PASSWORD });
   const owner: TenantContext = { barbershopId, userId: ownerId, role: "owner" };
   const day = startOfDay(now, "America/Sao_Paulo");
   const t = (hours: number) => new Date(day.getTime() + hours * HOUR); // hours since 00:00 of the shop's day
@@ -35,7 +38,11 @@ export async function seedDemo(adminPool: Pool, appPool: Pool, now: Date = new D
     withTenant(appPool, ctx, fn).then(unwrap);
 
   // team
-  const person = async (name: string, email: string) => (await run(owner, (tx) => createEmployeeCmd(tx, owner, { name, email, role: "barber" }))).id;
+  const person = async (name: string, email: string) => {
+    const id = (await run(owner, (tx) => createEmployeeCmd(tx, owner, { name, email, role: "barber" }))).id;
+    await setPasswordAsAdmin(adminPool, id, DEMO_PASSWORD);
+    return id;
+  };
   const rafaelId = await person("Rafael", email("rafael"));
   const diegoId = await person("Diego", email("diego"));
   const brunoId = await person("Bruno", email("bruno"));

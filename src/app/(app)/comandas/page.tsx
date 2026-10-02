@@ -1,44 +1,30 @@
 import Link from "next/link";
 import { Badge, ButtonLink, Card, Money, PageHeader, styles } from "@/components/ui";
-import {
-  appointmentLabel,
-  clientName,
-  comandas,
-  comandaTotal,
-  employeeName,
-  isComandaOf,
-  paymentMethodLabel,
-  pendingDaysLeftOf,
-  type Comanda,
-} from "@/prototype/mock-data";
-import { getDemoExpiryDays } from "@/prototype/demo-settings";
-import { DEMO_BARBER_ID, getDemoRole } from "@/prototype/demo-role";
+import { loadBoard } from "@/modules/service-orders/api/queries";
+import type { ComandaView } from "@/modules/service-orders/api/views";
 
-function barbersOf(comanda: Comanda): string {
-  const names = new Set(comanda.items.map((i) => employeeName(i.barberId)));
-  return names.size ? [...names].join(", ") : "Sem itens";
-}
+const methodLabel = { cash: "Dinheiro", pix: "Pix", debit: "Débito", credit: "Crédito" } as const;
 
-function ComandaRow({ comanda, expiryDays }: { comanda: Comanda; expiryDays: number | null }) {
+function ComandaRow({ comanda }: { comanda: ComandaView }) {
   return (
     <li>
       <Link href={`/comandas/${comanda.id}`} className={styles.row}>
         <span className={styles.rowMain}>
-          <span>#{comanda.number} · {clientName(comanda.clientId)}</span>
+          <span>#{comanda.number} · {comanda.clientName}</span>
           <span className={styles.rowMeta}>
-            {comanda.appointment ? `Agendado ${appointmentLabel(comanda)}` : comanda.openedAt} · {barbersOf(comanda)}
-            {comanda.payment && ` · ${paymentMethodLabel[comanda.payment]}`}
+            {comanda.appointment ? `Agendado ${comanda.appointment.label}` : comanda.openedAtLabel} · {comanda.barbersLabel}
+            {comanda.paymentMethod && ` · ${methodLabel[comanda.paymentMethod]}`}
           </span>
         </span>
         <span>
-          {comanda.status === "cancelada" ? (
+          {comanda.status === "cancelled" ? (
             <Badge tone="warning">Cancelada</Badge>
-          ) : comanda.status === "nao_compareceu" ? (
+          ) : comanda.status === "no_show" ? (
             <Badge tone="warning">Não compareceu</Badge>
-          ) : comanda.pendingDaysAgo !== undefined ? (
-            <Badge tone="warning">Pendente{pendingDaysLeftOf(comanda, expiryDays) !== null && ` · ${pendingDaysLeftOf(comanda, expiryDays)}d`}</Badge>
+          ) : comanda.pending ? (
+            <Badge tone="warning">Pendente{comanda.pending.daysLeft !== null && ` · ${comanda.pending.daysLeft}d`}</Badge>
           ) : (
-            <strong><Money cents={comandaTotal(comanda)} /></strong>
+            <strong><Money cents={comanda.total} /></strong>
           )}
         </span>
       </Link>
@@ -47,21 +33,19 @@ function ComandaRow({ comanda, expiryDays }: { comanda: Comanda; expiryDays: num
 }
 
 export default async function ComandasPage() {
-  const role = await getDemoRole();
-  const expiryDays = await getDemoExpiryDays();
-  const visible = role === "owner" ? comandas : comandas.filter((c) => isComandaOf(c, DEMO_BARBER_ID));
-  // Appointments for tomorrow live in the Agenda, not in today's open list.
-  const open = visible.filter((c) => c.status === "aberta" && c.appointment?.day !== "amanha");
-  const done = visible.filter((c) => c.status !== "aberta");
-
+  const board = await loadBoard();
   return (
     <>
-      <PageHeader title="Comandas" subtitle={role === "owner" ? "Hoje · todas" : "Hoje · só as minhas"} action={<ButtonLink href="/comandas/nova">+ Nova comanda</ButtonLink>} />
-      <Card title={`Abertas (${open.length})`}>
-        <ul className={styles.list}>{open.map((c) => <ComandaRow key={c.id} comanda={c} expiryDays={expiryDays} />)}</ul>
+      <PageHeader
+        title="Comandas"
+        subtitle={board.role === "owner" ? "Hoje · todas" : "Hoje · só as minhas"}
+        action={<ButtonLink href="/comandas/nova">+ Nova comanda</ButtonLink>}
+      />
+      <Card title={`Abertas (${board.open.length})`}>
+        {board.open.length === 0 ? <p className={styles.rowMeta}>Nenhuma comanda aberta.</p> : <ul className={styles.list}>{board.open.map((c) => <ComandaRow key={c.id} comanda={c} />)}</ul>}
       </Card>
-      <Card title={`Fechadas, canceladas e faltas (${done.length})`}>
-        <ul className={styles.list}>{done.map((c) => <ComandaRow key={c.id} comanda={c} expiryDays={expiryDays} />)}</ul>
+      <Card title={`Fechadas, canceladas e faltas (${board.done.length})`}>
+        {board.done.length === 0 ? <p className={styles.rowMeta}>Nada fechado hoje ainda.</p> : <ul className={styles.list}>{board.done.map((c) => <ComandaRow key={c.id} comanda={c} />)}</ul>}
       </Card>
     </>
   );

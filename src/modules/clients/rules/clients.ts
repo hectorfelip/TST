@@ -33,6 +33,13 @@ export function normalizePhone(raw: string): Result<string | null> {
   return valid ? ok(digits) : fail("INVALID_INPUT", "Telefone inválido. Use DDD + número, ex.: (11) 98888-1111.");
 }
 
+/** "11988881111" -> "(11) 98888-1111". Anything unexpected is shown as it is. */
+export function formatPhone(digits: string | null): string {
+  if (!digits) return "";
+  const m = /^(\d{2})(\d{4,5})(\d{4})$/.exec(digits);
+  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : digits;
+}
+
 function validate(input: ClientInput): Result<{ name: string; phone: string | null; notes: string | null }> {
   const name = input.name.trim().replace(/\s+/g, " ");
   if (name.length < 2 || name.length > 80) return fail("INVALID_INPUT", "Nome deve ter de 2 a 80 caracteres.");

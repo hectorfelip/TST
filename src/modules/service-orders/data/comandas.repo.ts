@@ -101,6 +101,25 @@ export function listComandas(tx: Tx, filter: { statuses?: ComandaStatus[]; limit
   return load(tx, "($1::text[] IS NULL OR status = ANY($1::text[]))", [filter.statuses ?? null], `ORDER BY number DESC LIMIT ${Math.min(filter.limit ?? 200, 1000)}`);
 }
 
+/**
+ * What happened to comandas in [from, to) and is no longer open: paid, cancelled, no-show. Discarded
+ * empty comandas are not shown anywhere. The "moment" is the latest event of the comanda.
+ */
+export function listFinishedBetween(tx: Tx, from: Date, to: Date): Promise<Comanda[]> {
+  return load(
+    tx,
+    `status IN ('closed', 'cancelled', 'no_show')
+     AND GREATEST(opened_at, closed_at, no_show_at, cancellation_at) >= $1 AND GREATEST(opened_at, closed_at, no_show_at, cancellation_at) < $2`,
+    [from, to],
+    "ORDER BY number DESC",
+  );
+}
+
+/** Comandas paid in [from, to) that are still paid (a cancelled one is not revenue). */
+export function listClosedBetween(tx: Tx, from: Date, to: Date): Promise<Comanda[]> {
+  return load(tx, "status = 'closed' AND closed_at >= $1 AND closed_at < $2", [from, to], "ORDER BY number DESC");
+}
+
 /** Open appointments in [from, to): the agenda. The rules (agendaBetween) then decide who sees which. */
 export function listAppointments(tx: Tx, from: Date, to: Date): Promise<Comanda[]> {
   return load(tx, "status = 'open' AND appointment_at >= $1 AND appointment_at < $2", [from, to], "ORDER BY appointment_at");

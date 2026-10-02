@@ -1,11 +1,12 @@
-import { barbershop, employeeName } from "@/prototype/mock-data";
-import { switchDemoRole } from "@/prototype/actions";
-import { DEMO_BARBER_ID, getDemoRole } from "@/prototype/demo-role";
+import { logoutAction } from "@/modules/auth/api/actions";
+import { getBarbershopName } from "@/modules/barbershops/data/settings.repo";
+import { read } from "@/server/run";
+import { requireAuth } from "@/server/auth";
 import type { Role } from "@/shared/tenant";
 import { NavLinks, type NavItem } from "./nav-links";
 import styles from "./ui.module.css";
 
-// Menus only hide screens. The real protection is on the server (step 3).
+// Menus only hide screens. The real protection is on the server: every query and action checks the role again.
 const navByRole: Record<Role, { mobile: NavItem[]; desktop: NavItem[] }> = {
   owner: {
     mobile: [
@@ -46,23 +47,21 @@ const navByRole: Record<Role, { mobile: NavItem[]; desktop: NavItem[] }> = {
 };
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
-  const role = await getDemoRole();
-  const nav = navByRole[role];
+  const { ctx, name } = await requireAuth();
+  const shopName = await read((tx) => getBarbershopName(tx));
+  const nav = navByRole[ctx.role];
 
   return (
     <div className={styles.shell}>
       <header className={styles.topbar}>
         <span className={styles.rowMain}>
-          <span className={styles.shopName}>{barbershop.name}</span>
+          <span className={styles.shopName}>{shopName}</span>
           <span className={styles.rowMeta}>
-            {role === "owner" ? "Dono" : `Barbeiro: ${employeeName(DEMO_BARBER_ID)}`} · protótipo
+            {ctx.role === "owner" ? "Dono" : "Barbeiro"}: {name}
           </span>
         </span>
-        <form action={switchDemoRole}>
-          <input type="hidden" name="role" value={role === "owner" ? "barber" : "owner"} />
-          <button type="submit" className={styles.prototypeTag}>
-            Ver como {role === "owner" ? "barbeiro" : "dono"}
-          </button>
+        <form action={logoutAction}>
+          <button type="submit" className={styles.smallButton}>Sair</button>
         </form>
       </header>
       <NavLinks items={nav.desktop} className={styles.sideNav} />

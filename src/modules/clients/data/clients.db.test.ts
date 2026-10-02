@@ -5,7 +5,7 @@ import { createTestDb, type TestDb } from "@/test/db/helpers";
 import { at, createWorld, openCash } from "@/test/db/world";
 import { unwrap } from "@/shared/result";
 import { anonymizeClientCmd, clientViewCmd, createClientCmd, updateClientCmd } from "./commands";
-import { findByPhone, getClient } from "./clients.repo";
+import { findByPhone, getClient, lastVisitByClient } from "./clients.repo";
 
 let db: TestDb;
 beforeAll(async () => {
@@ -75,6 +75,24 @@ describe("clients (R-CLI-01..05)", () => {
     expect(asRafael.phone).toBeNull();
     expect(asRafael.visits.map((v) => v.description)).toEqual(["Barba"]);
     expect(asRafael.lastVisitAt).toEqual(at(2.5)); // the date of the last visit is real, even if it was Diego's
+  });
+
+  it("last visit per client: the latest PAID comanda; clients without one are absent; other barbershops are invisible", async () => {
+    const w = await createWorld(db);
+    await openCash(db, w.shop);
+    const visit = async (clientId: string, hour: number, pay: boolean) => {
+      const c = unwrap(await db.as(w.rafael, (tx) => openComandaCmd(tx, w.rafael, { clientId, at: at(hour) })));
+      unwrap(await db.as(w.rafael, (tx) => addItemCmd(tx, w.rafael, c.id, { kind: "service", refId: w.corte, quantity: 1, barberId: w.rafael.userId, at: at(hour) })));
+      if (pay) unwrap(await db.as(w.rafael, (tx) => closeComandaCmd(tx, w.rafael, c.id, { method: "pix", at: at(hour + 0.5) })));
+    };
+    await visit(w.marcos, 1, true);
+    await visit(w.marcos, 3, true);
+    await visit(w.marcos, 5, false); // not paid: not a visit
+    await visit(w.andre, 2, false);
+    const other = await createWorld(db, "Barbearia Outra");
+    const last = await db.as(w.owner, (tx) => lastVisitByClient(tx));
+    expect([...last.entries()]).toEqual([[w.marcos, at(3.5)]]);
+    expect((await db.as(other.owner, (tx) => lastVisitByClient(tx))).size).toBe(0);
   });
 
   it("another barbershop cannot see this client at all", async () => {

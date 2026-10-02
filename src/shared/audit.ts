@@ -17,6 +17,7 @@ export type AuditAction =
   | "stock.adjusted"
   | "employee.role_changed"
   | "employee.deactivated"
+  | "employee.password_set"
   | "settings.changed";
 
 export type AuditEntry = {

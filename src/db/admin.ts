@@ -5,10 +5,32 @@
  */
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
+import { hashPassword } from "@/modules/auth/data/password";
+import { validatePassword } from "@/modules/auth/rules/password";
 import { DEFAULT_SETTINGS, validateSettings } from "@/modules/barbershops/rules/settings";
-import { withAdmin } from "./client";
+import { withAdmin, type Tx } from "./client";
 
-export type NewBarbershop = { name: string; ownerName: string; ownerEmail: string; timeZone?: string };
+export type NewBarbershop = { name: string; ownerName: string; ownerEmail: string; ownerPassword?: string; timeZone?: string };
+
+/**
+ * The FIRST password of a person (nobody can type a "current" password that does not exist yet),
+ * or a rescue when the owner forgot his own. Everyday changes go through setPasswordCmd.
+ */
+async function writePassword(tx: Tx, employeeId: string, password: string, at: Date): Promise<void> {
+  const valid = validatePassword(password);
+  if (!valid.ok) throw new Error(valid.error.message);
+  await tx.query(
+    `INSERT INTO employee_credentials (employee_id, barbershop_id, password_hash, password_changed_at)
+     SELECT id, barbershop_id, $2, $3 FROM employees WHERE id = $1
+     ON CONFLICT (employee_id) DO UPDATE
+       SET password_hash = EXCLUDED.password_hash, password_changed_at = EXCLUDED.password_changed_at, failed_attempts = 0, locked_until = NULL`,
+    [employeeId, await hashPassword(password), at],
+  );
+}
+
+export function setPasswordAsAdmin(adminPool: Pool, employeeId: string, password: string, at: Date = new Date()): Promise<void> {
+  return withAdmin(adminPool, (tx) => writePassword(tx, employeeId, password, at));
+}
 
 export async function createBarbershopWithOwner(
   adminPool: Pool,
@@ -16,6 +38,10 @@ export async function createBarbershopWithOwner(
 ): Promise<{ barbershopId: string; ownerId: string }> {
   const settings = validateSettings({ ...DEFAULT_SETTINGS, timeZone: input.timeZone ?? DEFAULT_SETTINGS.timeZone });
   if (!settings.ok) throw new Error(settings.error.message);
+  if (input.ownerPassword !== undefined) {
+    const valid = validatePassword(input.ownerPassword);
+    if (!valid.ok) throw new Error(valid.error.message);
+  }
   const barbershopId = randomUUID();
   const ownerId = randomUUID();
   return withAdmin(adminPool, async (tx) => {
@@ -38,6 +64,7 @@ export async function createBarbershopWithOwner(
       input.ownerName.trim(),
       input.ownerEmail.trim().toLowerCase(),
     ]);
+    if (input.ownerPassword !== undefined) await writePassword(tx, ownerId, input.ownerPassword, new Date());
     return { barbershopId, ownerId };
   });
 }

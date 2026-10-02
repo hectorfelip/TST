@@ -641,6 +641,6 @@ describe("migrations", () => {
 
   it("the real schema was applied to the test database", async () => {
     const { rows } = await db.adminPool.query("SELECT name FROM schema_migrations");
-    expect(rows.map((r) => r.name)).toEqual(["001_init.sql", "002_lock_out_platform_roles.sql"]);
+    expect(rows.map((r) => r.name)).toEqual(["001_init.sql", "002_lock_out_platform_roles.sql", "003_login_and_idempotency.sql"]);
   });
 });

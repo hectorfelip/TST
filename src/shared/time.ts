@@ -50,3 +50,47 @@ export function isValidTimeZone(timeZone: string): boolean {
     return false;
   }
 }
+
+/** "14:05" in the barbershop's time zone. */
+export function clockTime(date: Date, timeZone: string): string {
+  const p = localParts(date, timeZone);
+  return `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
+}
+
+/** The instant of "HH:mm" on the local day `dayOffset` days from `now` (0 = today, 1 = tomorrow). null if the text is not a time. */
+export function atLocalTime(now: Date, timeZone: string, dayOffset: number, hhmm: string): Date | null {
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
+  if (!m) return null;
+  return new Date(startOfDay(now, timeZone, dayOffset).getTime() + (Number(m[1]) * 60 + Number(m[2])) * 60000);
+}
+
+/** [from, to) of the local calendar month that contains `date`. */
+export function monthRange(date: Date, timeZone: string): { from: Date; to: Date; label: string } {
+  const p = localParts(date, timeZone);
+  const first = (year: number, month: number) => {
+    const midnightAsUtc = Date.UTC(year, month, 1);
+    const guess = midnightAsUtc - offsetMinutes(new Date(midnightAsUtc), timeZone) * 60000;
+    return new Date(midnightAsUtc - offsetMinutes(new Date(guess), timeZone) * 60000);
+  };
+  const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  return { from: first(p.year, p.month - 1), to: first(p.year, p.month), label: `${months[p.month - 1]} ${p.year}` };
+}
+
+/** "Hoje", "Amanhã", "Ontem" or "02/10", relative to `now`, in the barbershop's time zone. */
+export function relativeDay(date: Date, now: Date, timeZone: string): string {
+  const start = date.getTime();
+  for (const [offset, label] of [[0, "Hoje"], [1, "Amanhã"], [-1, "Ontem"]] as const) {
+    const from = startOfDay(now, timeZone, offset).getTime();
+    const to = startOfDay(now, timeZone, offset + 1).getTime();
+    if (start >= from && start < to) return label;
+  }
+  const p = localParts(date, timeZone);
+  return `${String(p.day).padStart(2, "0")}/${String(p.month).padStart(2, "0")}`;
+}
+
+/** "Terça-feira 29/09" for the header of the day screens. */
+export function dayTitle(now: Date, timeZone: string): string {
+  const p = localParts(now, timeZone);
+  const weekday = new Intl.DateTimeFormat("pt-BR", { timeZone, weekday: "long" }).format(now);
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${String(p.day).padStart(2, "0")}/${String(p.month).padStart(2, "0")}`;
+}
