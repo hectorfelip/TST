@@ -63,28 +63,38 @@ describe("expenses and withdrawals (R-CSH-03/04)", () => {
   });
 });
 
+const NONE = { count: 0, total: 0 };
+
 describe("close (R-CSH-05)", () => {
   it("matching count closes with no audit", () => {
     const { register, movements } = openCash(12850);
-    const { register: closed, audit } = unwrap(closeRegister(owner, register, movements, { countedCash: 12850, reason: null, openComandas: 0, at: NOW }));
+    const { register: closed, audits } = unwrap(closeRegister(owner, register, movements, { countedCash: 12850, reason: null, pending: NONE, at: NOW }));
     expect(closed).toMatchObject({ status: "closed", difference: 0, differenceReason: null, closedBy: "carlos" });
-    expect(audit).toBeNull();
+    expect(audits).toEqual([]);
   });
 
   it("difference needs a reason and is audited (negative = missing money)", () => {
     const { register, movements } = openCash(12850);
-    expectError(closeRegister(owner, register, movements, { countedCash: 12000, reason: null, openComandas: 0, at: NOW }), "INVALID_INPUT");
-    const { register: closed, audit } = unwrap(closeRegister(owner, register, movements, { countedCash: 12000, reason: "Troco errado", at: NOW, openComandas: 0 }));
+    expectError(closeRegister(owner, register, movements, { countedCash: 12000, reason: null, pending: NONE, at: NOW }), "INVALID_INPUT");
+    const { register: closed, audits } = unwrap(closeRegister(owner, register, movements, { countedCash: 12000, reason: "Troco errado", at: NOW, pending: NONE }));
     expect(closed.difference).toBe(-850);
-    expect(audit).toMatchObject({ action: "cash.closed_with_difference", details: { difference: -850 } });
+    expect(audits).toEqual([expect.objectContaining({ action: "cash.closed_with_difference", details: { difference: -850, reason: "Troco errado" } })]);
   });
 
-  it("blocked while comandas are open; barber cannot close; closed register cannot close again", () => {
+  it("NOT blocked by pending comandas, but they are recorded in the audit log", () => {
     const { register, movements } = openCash();
-    expectError(closeRegister(owner, register, movements, { countedCash: 10000, reason: null, openComandas: 3, at: NOW }), "NOT_ALLOWED");
-    expectError(closeRegister(rafael, register, movements, { countedCash: 10000, reason: null, openComandas: 0, at: NOW }), "FORBIDDEN");
-    expectError(closeRegister(intruder, register, movements, { countedCash: 10000, reason: null, openComandas: 0, at: NOW }), "WRONG_TENANT");
-    const closed = unwrap(closeRegister(owner, register, movements, { countedCash: 10000, reason: null, openComandas: 0, at: NOW })).register;
-    expectError(closeRegister(owner, closed, movements, { countedCash: 10000, reason: null, openComandas: 0, at: NOW }), "INVALID_STATE");
+    const { register: closed, audits } = unwrap(
+      closeRegister(owner, register, movements, { countedCash: 10000, reason: null, pending: { count: 2, total: 9000 }, at: NOW }),
+    );
+    expect(closed.status).toBe("closed");
+    expect(audits).toEqual([expect.objectContaining({ action: "cash.closed_with_pending", details: { count: 2, total: 9000 } })]);
+  });
+
+  it("barber cannot close; other shop cannot close; closed register cannot close again", () => {
+    const { register, movements } = openCash();
+    expectError(closeRegister(rafael, register, movements, { countedCash: 10000, reason: null, pending: NONE, at: NOW }), "FORBIDDEN");
+    expectError(closeRegister(intruder, register, movements, { countedCash: 10000, reason: null, pending: NONE, at: NOW }), "WRONG_TENANT");
+    const closed = unwrap(closeRegister(owner, register, movements, { countedCash: 10000, reason: null, pending: NONE, at: NOW })).register;
+    expectError(closeRegister(owner, closed, movements, { countedCash: 10000, reason: null, pending: NONE, at: NOW }), "INVALID_STATE");
   });
 });

@@ -7,6 +7,7 @@ export type AuditAction =
   | "comanda.cancel"
   | "comanda.payment_method_changed"
   | "cash.closed_with_difference"
+  | "cash.closed_with_pending"
   | "cash.withdrawal"
   | "client.anonymized"
   | "stock.adjusted"

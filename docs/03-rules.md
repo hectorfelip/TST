@@ -1,7 +1,8 @@
 # Step 3 — Rules (DRAFT, waiting for approval)
 
 > Status: **draft**. All rules are written as code and tested.
-> 6 rules need your confirmation (section 8).
+> Rule 5 was changed after your feedback (section 8.1). 5 rules still need
+> your confirmation (section 8).
 > Next step (4 — Data) only starts after approval.
 
 ## 1. What a "rule" is here
@@ -71,6 +72,7 @@ encontrado" — we do not even confirm it exists.
 | R-CMD-15 | **Cancel:** always needs a reason (≥ 5 characters) and is audited. Open with items: the barber (own) or the owner. **Paid: owner only**, register must be open, and reversal movements return the money and the products. History is never deleted. |
 | R-CMD-16 | The owner can **correct the payment method** of a paid comanda (e.g. Pix recorded as cash) only while **the same register is still open**. Two correction movements + audit. |
 | R-CMD-17 | **Changing the items removes the discount**; the owner gives it again for the new items. |
+| R-CMD-18 | *(new, after owner feedback)* The owner can **cancel several open comandas at once with one reason** (e.g. "Cliente não compareceu"). Empty ones are discarded. All or nothing; each cancellation is still audited. The screen asks for confirmation first. |
 
 ## 4. Cash register (`finance/rules/cash-register.ts`)
 
@@ -80,7 +82,8 @@ encontrado" — we do not even confirm it exists.
 | R-CSH-02 | **Cash in the drawer** = only `cash` movements: opening + cash sales − reversals − cash expenses − withdrawals ± corrections. Pix and cards never count. |
 | R-CSH-03 | Expenses: owner only, value > 0, description required, any payment method. |
 | R-CSH-04 | Withdrawal (sangria): owner only, reason required, **never more than the cash that should be in the drawer**, audited. |
-| R-CSH-05 | **Close:** owner only; **blocked while there are open comandas**; counted cash vs expected; any difference **requires a reason** and is audited. The difference is recorded, never "fixed". |
+| R-CSH-05 | **Close** *(revised after owner feedback)*: owner only; **open comandas do NOT block closing**; counted cash vs expected; any difference **requires a reason** and is audited. The difference is recorded, never "fixed". |
+| R-CSH-06 | *(new)* When the register closes: **empty open comandas are discarded automatically**; open comandas **with items stay "pending"** for the next register (if paid later, the money goes to the register open at that moment). Their number and value are written in the audit log, so they are never silently forgotten. If closing fails, nothing is discarded. |
 
 ## 5. Stock, clients, team, services, settings
 
@@ -110,7 +113,7 @@ Step 4 stores them in an **append-only** table (rows are never changed or
 deleted):
 
 discount · comanda cancellation · payment method correction · cash closed
-with difference · cash withdrawal · client data erased · stock adjustment ·
+with difference · **cash closed with pending comandas** · cash withdrawal · client data erased · stock adjustment ·
 role change · person deactivated.
 
 ## 7. Instructions for the next steps
@@ -144,20 +147,54 @@ role change · person deactivated.
 | 2 | **A barber can cancel his own open comanda** (with a reason). | **Fraud risk:** the client pays cash, the barber cancels "cliente desistiu" and keeps the money. | Only the owner cancels comandas with items; or keep it and show "cancelamentos do dia por barbeiro" on the owner's dashboard. **My recommendation: the second** — blocking slows honest barbers, visibility catches dishonest ones. |
 | 3 | **Stock can go negative** (sale never blocked). | The stock report can show nonsense numbers. | Block the sale when stock is 0. I think this is worse: the system's count is often wrong, and a real sale would be lost. |
 | 4 | **Changing items removes the discount.** | The owner must come back to re-apply it — annoying if he is busy. | Keep the discount if it is still ≤ the new subtotal. Risk: a discount meant for one service gets applied to a bigger comanda. |
-| 5 | **The cash register cannot close with open comandas.** | At 22h, a barber who went home left a comanda open; the owner is stuck. | Only warn. **I kept "block"** because the owner *can* cancel or close any comanda himself, and an open comanda at closing time means unrecorded money. |
+| ~~5~~ | ~~The cash register cannot close with open comandas.~~ | **Changed — see 8.1.** | |
 | 6 | **Payment method correction only while the same register is open.** | A mistake found the next day cannot be fixed. | Allow corrections later with a "correction" movement in today's register. Risk: yesterday's report changes after it was closed. |
+
+### 8.1 Rule 5 — changed after your feedback
+
+**Your point:** blocking the register makes the owner cancel, one by one,
+comandas of clients who never came (e.g. the 15h appointment), just to go home.
+You are right: the rule created work and protected little.
+
+**Why I did not simply remove the block:** an open comanda **with items** can
+be a service that was **done and paid in cash, but never closed** — money
+outside the system. If closing ignores it silently, nobody notices.
+
+**New rules (R-CSH-05 revised, R-CSH-06, R-CMD-18):**
+
+| Situation at closing time | What happens | Work for the owner |
+|---------------------------|--------------|--------------------|
+| Empty comanda (opened in advance, client never came) | Discarded automatically | None |
+| Comanda with items, client never came | One button: **"Cancelar todas: cliente não compareceu"** (with confirmation) | 2 taps for all of them |
+| Comanda with items, maybe not paid yet | Stays **pending** for the next day; recorded in the audit log with count and value | None now; it shows up again tomorrow |
+
+**Devil's advocate on your example — "o agendamento das 15h":**
+
+1. **The MVP has no agenda.** If barbers open comandas **in advance** to
+   remember appointments, they are using the comanda as an agenda. That
+   pollutes "comandas abertas" and the dashboard during the whole day.
+   → **Question:** do barbers really do this? If yes, the agenda is a
+   stronger need than we thought, and should be the **first item of v2**.
+2. **Bulk cancel can hide fraud** (service done, cash in the pocket, then
+   "não compareceu"). → It is owner-only, needs confirmation, and every
+   cancellation stays in the audit log. In step 5, the owner dashboard should
+   show **cancellations per barber**.
+3. **Pending comandas can pile up forever** if nobody looks at them.
+   → Step 2 screens will mark them **"pendente desde DD/MM"** on the
+   dashboard (rule helper `isPendingFromBefore` is ready).
 
 ## 9. My verification of this step
 
-- [x] **108 unit tests** (`npm test`), covering every rule ID above, including the cases that must **fail** (wrong role, wrong barbershop, invalid values, wrong state).
-- [x] **Mutation check:** I broke 6 rules on purpose (cash counting Pix; barber allowed to give discounts; tenant check turned off; barber sees phones; discount cents lost; closing without an open register). **The tests caught all 6.**
+- [x] **115 unit tests** (`npm test`), covering every rule ID above, including the cases that must **fail** (wrong role, wrong barbershop, invalid values, wrong state).
+- [x] **Mutation check:** I broke 6 rules on purpose (cash counting Pix; barber allowed to give discounts; tenant check turned off; barber sees phones; discount cents lost; closing without an open register). **The tests caught all 6.** After the rule 5 change, 4 more deliberate mistakes in the new rules (discarding comandas with items; pending not audited; discarding even when closing fails; barber allowed to bulk cancel): **all caught.**
 - [x] **Architecture test:** rules import no framework, no database and no screens; modules depend only on allowed modules (no cycles). The real dependency direction is now: *Comanda → Finance, Stock, Clients, Services, Team* (Finance never imports Comanda).
 - [x] **Money:** a full day simulated in tests (open with R$ 100, Pix sale, cash sale with change, cancellation, payment correction): expected cash and totals per method always match.
 - [x] **Decision B applied to the prototype:** barbers see no phones and only their own client history. Checked in the browser.
 - [x] **Privacy bug found and fixed:** the "Nova comanda" screen was sending **all client phone numbers** to the barber's browser (hidden on screen, but readable in the page source). Now a barber's browser never receives them — checked automatically.
-- [x] Prototype cash closing now follows R-CSH-05 (blocked with open comandas).
-- [x] `npm run typecheck`, `npm run lint`, `npm run build` pass; browser checks: 27 (comanda + clients + cash) + 25 (roles) all pass.
-- [ ] Owner confirmed the 6 rules in section 8.
+- [x] Prototype "Fechar caixa" follows the revised R-CSH-05/06: explains what will be discarded and what stays pending; bulk cancel with confirmation.
+- [x] `npm run typecheck`, `npm run lint`, `npm run build` pass; browser checks: 35 (comanda + clients + cash) + 25 (roles) all pass.
+- [x] Rule 5 changed after owner feedback (section 8.1).
+- [ ] Owner confirmed rules 1, 2, 3, 4, 6 and the new rule 5.
 - [ ] Owner approved this document.
 - [ ] (Before step 4) Barbershop **owner** test — commission, discount and cash-opening rules may change.
 

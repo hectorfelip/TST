@@ -158,9 +158,11 @@ export function recordWithdrawal(
 }
 
 /**
- * R-CSH-05: closing the register.
+ * R-CSH-05 (revised after owner feedback): closing the register.
  * - owner only;
- * - blocked while there are open comandas (their money would be lost);
+ * - NOT blocked by open comandas: comandas with items stay pending for the
+ *   next register (see `closeDay` in service-orders), and their number and
+ *   value are recorded in the audit log so they are never silently ignored;
  * - the counted cash is compared with the expected cash;
  * - any difference needs a reason and is audited. The difference is recorded,
  *   never "fixed" by changing numbers.
@@ -169,15 +171,12 @@ export function closeRegister(
   ctx: TenantContext,
   register: CashRegister | null,
   movements: readonly CashMovement[],
-  input: { countedCash: Cents; reason: string | null; openComandas: number; at: Date },
-): Result<{ register: CashRegister; audit: AuditEntry | null }> {
+  input: { countedCash: Cents; reason: string | null; pending: { count: number; total: Cents }; at: Date },
+): Result<{ register: CashRegister; audits: AuditEntry[] }> {
   const allowed = requirePermission(ctx, "cash.close");
   if (!allowed.ok) return allowed;
   const open = requireOpenRegister(ctx, register);
   if (!open.ok) return open;
-  if (input.openComandas > 0) {
-    return fail("NOT_ALLOWED", `Existem ${input.openComandas} comandas abertas. Feche, cancele ou descarte antes de fechar o caixa.`);
-  }
   if (!Number.isInteger(input.countedCash) || input.countedCash < 0) return fail("INVALID_INPUT", "Valor contado inválido.");
   const difference = input.countedCash - expectedCash(movements);
   if (difference !== 0 && !isValidReason(input.reason)) {
@@ -192,16 +191,13 @@ export function closeRegister(
     difference,
     differenceReason: difference === 0 ? null : (input.reason ?? "").trim(),
   };
-  const audit: AuditEntry | null =
-    difference === 0
-      ? null
-      : {
-          barbershopId: ctx.barbershopId,
-          action: "cash.closed_with_difference",
-          userId: ctx.userId,
-          at: input.at,
-          entityId: closed.id,
-          details: { difference, reason: closed.differenceReason },
-        };
-  return ok({ register: closed, audit });
+  const base = { barbershopId: ctx.barbershopId, userId: ctx.userId, at: input.at, entityId: closed.id };
+  const audits: AuditEntry[] = [];
+  if (difference !== 0) {
+    audits.push({ ...base, action: "cash.closed_with_difference", details: { difference, reason: closed.differenceReason } });
+  }
+  if (input.pending.count > 0) {
+    audits.push({ ...base, action: "cash.closed_with_pending", details: { count: input.pending.count, total: input.pending.total } });
+  }
+  return ok({ register: closed, audits });
 }
