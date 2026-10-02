@@ -16,7 +16,8 @@
     "test:db": "vitest run --config vitest.db.config.mts",
     "test:all": "npm test && npm run test:db",
     "db:seed": "tsx scripts/seed-demo.mts",
-    "db:backup": "tsx scripts/backup.mts"
+    "db:backup": "tsx scripts/backup.mts",
+    "db:set-password": "tsx scripts/set-password.mts"
   },
   "dependencies": {
     "next": "16.3.7",

@@ -644,3 +644,29 @@ describe("migrations", () => {
     expect(rows.map((r) => r.name)).toEqual(["001_init.sql", "002_lock_out_platform_roles.sql", "003_login_and_idempotency.sql"]);
   });
 });
+
+describe("one transaction, many queries started at once", () => {
+  it("they wait in line: all answers are right and the driver never sees two at the same time", async () => {
+    const warnings: string[] = [];
+    const onWarning = (w: Error) => warnings.push(w.message);
+    process.on("warning", onWarning);
+    const [a1, a2, a3] = await db.as(a.owner, (tx) =>
+      Promise.all([tx.query("SELECT 1 AS n"), tx.query("SELECT pg_sleep(0.05), 2 AS n"), tx.query("SELECT 3 AS n")]),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    process.off("warning", onWarning);
+    expect([a1[0].n, a2[0].n, a3[0].n]).toEqual([1, 2, 3]);
+    expect(warnings.filter((w) => /already executing a query/.test(w))).toEqual([]);
+  });
+
+  it("an error in one query does not poison the line: the transaction still reports it", async () => {
+    await expect(
+      db.as(a.owner, async (tx) => {
+        const bad = tx.query("SELECT * FROM table_that_does_not_exist");
+        const good = tx.query("SELECT 1");
+        await bad;
+        return good;
+      }),
+    ).rejects.toThrow(/does not exist/);
+  });
+});

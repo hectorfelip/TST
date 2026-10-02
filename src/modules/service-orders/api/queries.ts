@@ -40,12 +40,11 @@ async function dayData() {
     const world = await loadWorld(tx);
     const today = dayRange(world.now, world.timeZone);
     const tomorrow = dayRange(world.now, world.timeZone, 1);
-    const [openAll, finished, appointmentsToday, appointmentsTomorrow] = await Promise.all([
-      listComandas(tx, { statuses: ["open"], limit: 500 }),
-      listFinishedBetween(tx, today.from, today.to),
-      listAppointments(tx, today.from, today.to),
-      listAppointments(tx, tomorrow.from, tomorrow.to),
-    ]);
+    // One after the other: a transaction runs one query at a time.
+    const openAll = await listComandas(tx, { statuses: ["open"], limit: 500 });
+    const finished = await listFinishedBetween(tx, today.from, today.to);
+    const appointmentsToday = await listAppointments(tx, today.from, today.to);
+    const appointmentsTomorrow = await listAppointments(tx, tomorrow.from, tomorrow.to);
     const mine = (c: Comanda) => canView(ctx, c);
     const startOfTomorrow = tomorrow.from.getTime();
     return {
@@ -156,7 +155,9 @@ export async function loadComandaPage(id: string): Promise<ComandaPage> {
     if (!comanda) return { kind: "missing" };
     if (!canView(ctx, comanda)) return { kind: "forbidden" };
     const world = await loadWorld(tx);
-    const [services, products, register] = await Promise.all([listServices(tx), listProducts(tx), getOpenRegister(tx)]);
+    const services = await listServices(tx);
+    const products = await listProducts(tx);
+    const register = await getOpenRegister(tx);
     const isOpen = comanda.status === "open";
     return {
       kind: "ok",

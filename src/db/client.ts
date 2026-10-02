@@ -22,8 +22,14 @@ export type Tx = {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function wrap(client: PoolClient): Tx {
-  const query = async <R extends QueryResultRow>(text: string, params?: readonly unknown[]): Promise<R[]> =>
-    (await client.query<R>(text, params as unknown[] | undefined)).rows;
+  // A transaction runs ONE query at a time. If code starts two at once (Promise.all), they wait in line instead
+  // of tripping the driver (which warns today and will refuse in the next major version).
+  let line: Promise<unknown> = Promise.resolve();
+  const query = <R extends QueryResultRow>(text: string, params?: readonly unknown[]): Promise<R[]> => {
+    const run = line.then(async () => (await client.query<R>(text, params as unknown[] | undefined)).rows);
+    line = run.catch(() => undefined);
+    return run;
+  };
   return {
     query,
     async one(text, params) {

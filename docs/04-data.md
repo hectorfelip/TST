@@ -1,8 +1,7 @@
-# Step 4 — Data (DRAFT, waiting for approval)
+# Step 4 — Data (APPROVED)
 
-> Status: **draft.** The database, the saving layer and the tests are done.
-> 3 points need your decision (section 11).
-> Next step (5 — Communication) only starts after approval.
+> Status: **approved by the owner.** Decisions: hosting on **Supabase**, **plain SQL migrations** (no Prisma), **daily backups**.
+> Step 5 (Communication) is in [05-communication.md](05-communication.md).
 
 ## 1. What this step delivers, in simple words
 
@@ -195,7 +194,7 @@ The API / server actions must:
 ## 11. Decisions for you
 
 1. **Where will the real PostgreSQL live?** ✅ **Supabase** (decided). How we use it safely: section 13.
-2. **Plain SQL migrations instead of Prisma?** ⏳ **Open.** You asked for the effects first; they are in the chat answer. Nothing else in the project depends on the answer for now (the screens and the rules do not change either way).
+2. **Plain SQL migrations instead of Prisma?** ✅ **Plain SQL** (decided, after the effects were explained).
 3. **Backups:** ✅ **Daily backups** (decided; no point-in-time recovery for now). What it really means in Supabase: section 13.
 
 ## 12. My verification of this step
@@ -209,8 +208,8 @@ The API / server actions must:
 - [x] **Real command-line tools tried:** `db:migrate` (twice: the second does nothing), `db:create-barbershop`, `db:seed` (a whole day through the real commands matches the prototype: cash R$ 128,50).
 - [x] `npm run typecheck`, `npm run lint`, `npm run build` pass.
 - [x] Supabase hardening (migration 002) and backup + **real restore** tested (12 new database tests).
-- [ ] Owner answered the 3 decisions of section 11 (2 of 3 answered; the Prisma one is open).
-- [ ] Owner approved this document.
+- [x] Owner answered the 3 decisions of section 11.
+- [x] Owner approved this document.
 
 ## 13. Supabase: how we use it (and what it does not do for us)
 

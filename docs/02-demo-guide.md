@@ -1,5 +1,8 @@
 # Demo guide — showing the prototype to a barbershop
 
+> **Historical (step 2).** Since step 5 the screens are real: there is a login, and no "Ver como barbeiro" switch. To show the
+> current app, use the demo data (`npm run db:seed`) and log in as `carlos@exemplo.com` (owner) or `rafael@exemplo.com` (barber).
+
 Goal: find out **what is wrong or missing** before we write rules and the
 database. A demo where the owner only says "legal, gostei" is a failed demo:
 it teaches us nothing.

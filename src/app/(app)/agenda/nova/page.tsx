@@ -4,7 +4,11 @@ import { loadWorld } from "@/server/lookups";
 import { ScheduleForm } from "./schedule-form";
 
 export default async function NewAppointmentPage() {
-  const [clients, world] = await Promise.all([loadClientOptions(), read((tx, ctx) => loadWorld(tx).then((w) => ({ barbers: w.employees.filter((e) => e.active).map((e) => ({ id: e.id, name: e.name })), me: ctx })))]);
+  const clients = await loadClientOptions();
+  const world = await read(async (tx, ctx) => {
+    const w = await loadWorld(tx);
+    return { barbers: w.employees.filter((e) => e.active).map((e) => ({ id: e.id, name: e.name })), me: ctx };
+  });
   return (
     <ScheduleForm
       role={world.me.role}

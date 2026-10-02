@@ -69,7 +69,9 @@ export async function loadReports(): Promise<ReportsPage> {
   return read(async (tx) => {
     const world = await loadWorld(tx);
     const { from, to, label } = monthRange(world.now, world.timeZone);
-    const [money, barbers, services] = await Promise.all([moneyTotals(tx, from, to), barberTotals(tx, from, to), topServices(tx, from, to, 5)]);
+    const money = await moneyTotals(tx, from, to);
+    const barbers = await barberTotals(tx, from, to);
+    const services = await topServices(tx, from, to, 5);
     return {
       label,
       income: money.income,

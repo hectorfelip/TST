@@ -16,7 +16,8 @@ export type ClientRow = { id: string; name: string; /** null for a barber: the p
 export async function loadClientList(search = ""): Promise<{ canSeePhone: boolean; clients: ClientRow[] }> {
   return read(async (tx, ctx) => {
     const world = await loadWorld(tx);
-    const [clients, visits] = await Promise.all([listClients(tx), lastVisitByClient(tx)]);
+    const clients = await listClients(tx);
+    const visits = await lastVisitByClient(tx);
     const canSeePhone = can(ctx.role, "client.view_phone");
     return {
       canSeePhone,

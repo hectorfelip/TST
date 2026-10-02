@@ -11,7 +11,9 @@ export type World = Lookups & { settings: BarbershopSettings; employees: Employe
 
 /** Names, time zone and settings for one request. Phones and notes are NOT loaded here: only what a comanda screen needs. */
 export async function loadWorld(tx: Tx, now: Date = new Date()): Promise<World> {
-  const [settings, employees, clients] = await Promise.all([getSettings(tx), listEmployees(tx), listClients(tx)]);
+  const settings = await getSettings(tx);
+  const employees = await listEmployees(tx);
+  const clients = await listClients(tx);
   const employeeById = new Map(employees.map((e) => [e.id, e.name]));
   const clientById = new Map(clients.map((c) => [c.id, clientDisplayName(c)]));
   return {
