@@ -1,13 +1,15 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
-// Fast unit tests of the rules: no database needed. Database tests: `npm run test:db`.
+// Tests against a REAL PostgreSQL. Each test file gets its own database.
 export default defineConfig({
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
   test: {
-    include: ["src/**/*.test.ts"],
-    exclude: ["src/**/*.db.test.ts", "node_modules/**"],
+    include: ["src/**/*.db.test.ts"],
+    globalSetup: ["src/test/db/global-setup.ts"],
+    testTimeout: 30_000,
+    hookTimeout: 60_000,
   },
 });

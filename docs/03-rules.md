@@ -1,11 +1,10 @@
-# Step 3 — Rules (v4, waiting for approval)
+# Step 3 — Rules (APPROVED)
 
-> Status: **your decisions are implemented** (section 8). Confirmed in
-> round 3: the light agenda, the barber opening the register with a reason,
-> and the automatic cancellation as an **option of each barbershop with a
-> custom deadline** (section 8.7).
-> 1 point is still open: the stock question (section 8.8), which was not clear.
-> Next step (4 — Data) only starts after approval.
+> Status: **approved by the owner.** Round 3 decisions: the light agenda, the
+> barber opening the register with a reason, the automatic cancellation as an
+> **option of each barbershop with a custom deadline** (section 8.7), and **the
+> stock question stays** (section 8.8).
+> Step 4 (Data) is in [04-data.md](04-data.md).
 
 ## 1. What a "rule" is here
 
@@ -309,7 +308,7 @@ Screenshots (phone): [Meu dia with the agenda](img/03-mobile-meu-dia-agenda.png)
 | 1 | The agenda enters the MVP | **A simple agenda** | Stays as built (8.4). |
 | 2 | A barber opens the register with a different amount (reason + owner warned) | **Yes** | Stays as built (R-CSH-07). |
 | 3 | The system cancels pending comandas after 5 days | **Yes, but as an option of the barbershop, with a custom deadline** | Implemented (8.7). |
-| 4 | "I have it in hand" confirmation for stock | **Did not understand** | Explained again (8.8). |
+| 4 | "I have it in hand" confirmation for stock | **Did not understand** → explained (8.8) → **keep the question** | Stays as built. |
 
 ### 8.7 Pending comandas: an option of the barbershop, with a custom deadline
 
@@ -384,8 +383,8 @@ because the count was not updated.
 - [x] **Browser (phone size):** 79 checks on the new flows — main flow in 6 taps; stock question; barber's agenda; no-show with confirmation, disabled before the time; barber has **no** cancel button; booking form; barber opens the register (reason required if different); closing the register with 8 comandas, each option confirmed, final summary — **all pass**. Round 3 added **30 more** for the Configurações screen (option ON/OFF, invalid deadlines, preview, every screen following the choice, closing the register with the option OFF). Plus 25 role checks and 16 screens without horizontal scroll.
 - [x] `npm run typecheck`, `npm run lint`, `npm run build` pass.
 - [x] Owner confirmed points 1, 2 and 3 (section 8.6).
-- [ ] Owner answered the stock question (section 8.8).
-- [ ] Owner approved this document.
+- [x] Owner answered the stock question: **keep it** (section 8.8).
+- [x] Owner approved this document.
 - [ ] (Before step 4) Test with a barbershop **owner**: agenda, no-show, commission and cash-opening rules.
 
 ## Glossary
