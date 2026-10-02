@@ -72,6 +72,7 @@ Navigation: **bottom tab bar** on the phone (Painel, Comandas, Caixa, Mais),
 | Caixa (cash register) | `/caixa` | ✅ | ❌ | Money in and out |
 | Fechar caixa (interactive) | `/caixa/fechar` | ✅ | ❌ | Does the money match? Which services were not paid? |
 | Abrir caixa *(step 3)* | `/caixa/abrir` | ✅ | ✅ | — |
+| Configurações *(step 3)* | `/configuracoes` | ✅ | ❌ | — |
 | Agenda *(step 3)* | `/agenda`, `/agenda/nova` | ✅ all barbers | ⚠️ own clients | Who is coming today and tomorrow? |
 | Clientes | `/clientes`, `/clientes/[id]` | ✅ | ⚠️ search, view, create (no edit, no delete) | Clients who stopped coming ("Sumido" badge) |
 | Serviços | `/servicos` | ✅ | ❌ | — |
@@ -305,6 +306,7 @@ Decided in [03-rules.md](03-rules.md), section 8:
 - **Fechar caixa**: lists every unpaid service with its value; each comanda needs a decision with a confirmation; final summary before closing.
 - **Abrir caixa** (new): the barber or the owner; the amount is compared with what was left yesterday.
 - **Nova comanda**: when stock in the system is too low, it asks "do you have it in hand?".
+- **Configurações** (new, owner only): option to cancel pending comandas automatically, with a custom deadline of 1 to 30 days.
 - Bottom menu: **Agenda** added (owner: 5 tabs; barber: Meu dia, Agenda, Comandas, Mais).
 
 ## Glossary

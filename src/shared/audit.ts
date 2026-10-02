@@ -16,7 +16,8 @@ export type AuditAction =
   | "client.anonymized"
   | "stock.adjusted"
   | "employee.role_changed"
-  | "employee.deactivated";
+  | "employee.deactivated"
+  | "settings.changed";
 
 export type AuditEntry = {
   barbershopId: string;

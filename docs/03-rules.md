@@ -1,8 +1,10 @@
-# Step 3 — Rules (v3, waiting for approval)
+# Step 3 — Rules (v4, waiting for approval)
 
-> Status: **your decisions on rules 1–6 are implemented** (section 8).
-> One thing grew: the MVP now has a **light agenda** (section 8.4).
-> 4 points need your confirmation (section 8.6).
+> Status: **your decisions are implemented** (section 8). Confirmed in
+> round 3: the light agenda, the barber opening the register with a reason,
+> and the automatic cancellation as an **option of each barbershop with a
+> custom deadline** (section 8.7).
+> 1 point is still open: the stock question (section 8.8), which was not clear.
 > Next step (4 — Data) only starts after approval.
 
 ## 1. What a "rule" is here
@@ -86,7 +88,7 @@ encontrado" — we do not even confirm it exists.
 | R-CMD-18 | At closing, **every** open comanda gets an explicit decision by the owner, with a confirmation step (section 8.5). *(Replaces the "cancel all" button of the previous round.)* |
 | R-CMD-19 | **"Não compareceu" (no-show) is not a cancellation.** The comanda is paused, leaves the day's agenda and the absence is recorded (comanda + audit log + the client's absence count). Only for appointments; only **after** the appointment time; the barber of that comanda or the owner. No money or stock is touched. |
 | R-CMD-20 | **Appointment** = a comanda opened in advance: needs a **registered** client, a time that has not passed, at most 14 days ahead, an active barber. A barber books only in his own name; the owner for anyone. |
-| R-CMD-22 | A pending comanda not paid within **N days (default 5, a setting)** is **cancelled by the system** (reason "Expirou…", author "system", audited). |
+| R-CMD-22 | *(revised)* **If the barbershop keeps the option ON**, a pending comanda not paid within **N days** (custom, 1–30; default 5) is **cancelled by the system** (reason "Expirou…", author "system", audited). **Option OFF: nothing is ever cancelled by itself**; the comanda waits until the owner pays or cancels it, and is still alerted at every closing. |
 
 ## 4. Cash register (`finance/rules/cash-register.ts`)
 
@@ -117,7 +119,8 @@ encontrado" — we do not even confirm it exists.
 | R-CLI-04 | **LGPD:** the owner erases name, phone and notes; comandas and money stay without personal data. Audited. Cannot be undone. |
 | R-CLI-05 | **Decision B:** shared client base; a barber sees name, notes and **only his own visits — no phone**. Search by phone is owner-only. |
 | R-CLI-06 | "Sumido" = no visit for more than *N* days. *N* is a **setting per barbershop** (7–365, default 30). A client with no visits is "new", not away. |
-| R-SET-01 | Settings per barbershop: days for "sumido", **days a pending comanda lasts (1–30, default 5)**, and the **time zone** (decides what "today" and "tomorrow" mean). |
+| R-SET-01 | Settings per barbershop: days for "sumido"; **an OPTION to cancel pending comandas automatically (default ON) with a custom deadline of 1–30 days (default 5)**; and the **time zone** (decides what "today" and "tomorrow" mean). The deadline is validated even when the option is OFF, so turning it on later never starts with a bad value. |
+| R-SET-02 | Only the owner changes settings; every change is audited as "old → new". Before saving, the screen **previews** how many pending comandas would be cancelled right away (lowering the deadline or turning the option on can cancel old ones). |
 | R-EMP-01 | Only the owner adds people. E-mail is the login and must be unique. Each person has an individual login. |
 | R-EMP-02 | A barbershop always keeps **at least one active owner**. |
 | R-EMP-03 | People are deactivated, never deleted. Inactive people cannot log in or receive new items. Role change and deactivation are audited. |
@@ -130,6 +133,7 @@ Step 4 stores them in an **append-only** table (rows are never changed or
 deleted):
 
 discount · comanda cancellation · **comanda expired (system)** · **no-show** ·
+**settings changed** ·
 payment method correction · **sale without stock** · **cash opened with a
 different amount** · cash closed with difference · cash closed with pending
 comandas · cash withdrawal · client data erased · stock adjustment · role
@@ -181,7 +185,7 @@ change · person deactivated.
 |-------------|--------|
 | 1. Barbers need to see their booked clients, today or tomorrow. | **Light agenda** in the MVP (8.4). |
 | 2. At the end of the day, every unpaid service must be **alerted to the owner** when closing the register; services that were not attended **cannot be cancelled before** that check. | R-CSH-08: a list of every unpaid service with its value; the register cannot close until each one is decided; a no-show with items already added is reviewed too. A no-show is only possible through the appointment flow, and the owner sees it before the day ends. |
-| 3. Keep the idea of limiting pending comandas, with a limit of 5 days, then the booking is cancelled. | R-CMD-22; the 5 days is a **setting** (1–30). Each closing shows "vence em N dias". |
+| 3. Keep the idea of limiting pending comandas, with a limit of 5 days, then the booking is cancelled. | R-CMD-22, as an **option of each barbershop** with a **custom deadline** (section 8.7). Each closing shows "vence em N dias". |
 
 ### 8.2 Rule 6 — why "a closed day is sealed" is an advantage
 
@@ -298,27 +302,87 @@ Screenshots (phone): [Meu dia with the agenda](img/03-mobile-meu-dia-agenda.png)
 [Não compareceu, with confirmation](img/03-mobile-nao-compareceu.png) ·
 [Fechar caixa](img/03-mobile-fechar-caixa.png)
 
-### 8.6 Please confirm
+### 8.6 What you confirmed in round 3
 
-1. **The agenda enters the MVP** (8.4). It is the biggest change of this round.
-2. **A barber opening with a different amount** is allowed with a reason and
-   warns the owner (R-CSH-07), instead of being blocked.
-3. **The system cancels pending comandas after 5 days.** A comanda with items
-   may be a service that was done and never paid, so this can erase money
-   without anyone deciding. The owner sees the countdown at every closing and
-   on the dashboard, and it is audited. Accept?
-4. **"I have it in hand" confirmation for stock** (8.3) — is it the answer to
-   your concern?
+| # | Point | Your answer | Result |
+|---|-------|-------------|--------|
+| 1 | The agenda enters the MVP | **A simple agenda** | Stays as built (8.4). |
+| 2 | A barber opens the register with a different amount (reason + owner warned) | **Yes** | Stays as built (R-CSH-07). |
+| 3 | The system cancels pending comandas after 5 days | **Yes, but as an option of the barbershop, with a custom deadline** | Implemented (8.7). |
+| 4 | "I have it in hand" confirmation for stock | **Did not understand** | Explained again (8.8). |
+
+### 8.7 Pending comandas: an option of the barbershop, with a custom deadline
+
+New screen **Configurações** (owner only), card **"Comandas pendentes"**:
+
+| Setting | Values | What happens |
+|---------|--------|--------------|
+| **Cancelar pendentes automaticamente** | ON (default) / OFF | OFF = nothing is cancelled by itself. |
+| **Prazo (dias)** | any whole number from **1 to 30** (default 5) | Only used when the option is ON. |
+
+How the rest of the system reacts (all screens follow the choice):
+
+- **ON, 5 days:** "Deixar pendente (5 dias)"; comanda shows "vence em 2 dias" / "vence hoje".
+- **ON, 1 day:** "Deixar pendente (1 dia)".
+- **OFF:** "Deixar pendente (sem prazo)"; the comanda shows "Pendente · sem prazo" and the screen says: *this barbershop does not cancel pending comandas by itself*. The owner is **still alerted** of every one at each closing, with the money at risk.
+
+Devil's advocate:
+
+1. **Lowering the deadline can cancel things at once.** If the owner changes
+   5 days to 3 and a comanda has been pending for 4 days, it is cancelled in
+   the next daily run. → The screen **previews** it ("#1019 já passou desse
+   prazo e será cancelada") and asks for confirmation before saving. Turning
+   the option on does the same.
+2. **OFF means pending comandas can stay forever** and the dashboard can fill
+   up with old ones. → They remain visible on the dashboard and in every
+   closing. The owner is the one who decides; the system only keeps showing.
+3. **Why 30 days at most:** a service unpaid for more than a month is no
+   longer "pending", it is a loss to be decided. The limit can be raised if a
+   real shop needs it.
+4. **Each barbershop is a different company.** One owner may want 1 day, other
+   15 days, other never cancel. That is the point of making it an option. Every
+   change is **audited** (who, when, old → new value).
+
+### 8.8 Point 4 — the stock question, explained simply
+
+**The situation.** The system says there are **2 pomadas** in stock. The
+barber is about to sell the **3rd** one. The system does not know if the count
+is wrong (maybe there are 5 on the shelf and nobody typed the purchase) or
+if there really are only 2.
+
+**What happens on the screen.** A box appears:
+
+> *Pomada modeladora: o estoque no sistema é 2. Você tem o produto em mãos para entregar agora?*
+> **[Sim, tenho em mãos]**  **[Não]**
+
+- **"Não":** nothing is added to the comanda. The barber cannot sell what he
+  cannot hand to the client.
+- **"Sim, tenho em mãos":** the sale goes ahead. The system saves **who
+  confirmed**, and the owner gets an alert that the stock is **negative**
+  and needs a recount.
+
+**Why it exists.** It solves your worry — selling something that is not there
+and having no time to restock before delivering — **without** blocking real
+sales when the stock count in the system is simply out of date.
+
+**What it does not stop:** someone saying "sim" without having the product.
+That is why his name is saved and the owner is warned.
+
+**Decision for you:** keep this question (my default), or **block** the sale
+whenever the system stock is 0 (the barber would have to ask the owner to fix
+the count first)? The second is stricter but a real sale can be lost just
+because the count was not updated.
 
 ## 9. My verification of this step
 
-- [x] **169 unit tests** (`npm test`). Every rule ID above has tests, including the cases that must **fail** (wrong role, wrong barbershop, invalid values, wrong state, missing confirmation).
-- [x] **Breaking the rules on purpose:** round 1: 6 breaks (cash counting Pix; barber giving discounts; tenant check off; barber seeing phones; discount cents lost; closing without an open register). This round: **16 more** — barber cancelling or closing the register; no-show before the time, on a walk-in, or stored as "cancelled"; stock confirmation skipped; removed items not kept; opening amount not compared or not audited; closing without confirmation or with undecided comandas; discarding a comanda with a service; pending never expiring or expiring early; keeping pending restarting the countdown; agenda showing other barbers' clients. **All caught by the tests.**
+- [x] **177 unit tests** (`npm test`). Every rule ID above has tests, including the cases that must **fail** (wrong role, wrong barbershop, invalid values, wrong state, missing confirmation).
+- [x] **Breaking the rules on purpose:** round 1: 6 breaks (cash counting Pix; barber giving discounts; tenant check off; barber seeing phones; discount cents lost; closing without an open register). This round: **16 more** — barber cancelling or closing the register; no-show before the time, on a walk-in, or stored as "cancelled"; stock confirmation skipped; removed items not kept; opening amount not compared or not audited; closing without confirmation or with undecided comandas; discarding a comanda with a service; pending never expiring or expiring early; keeping pending restarting the countdown; agenda showing other barbers' clients. Round 3: **7 more** on the new option — ignoring the OFF switch, cancelling anyway when OFF, showing a countdown when OFF, a barber changing the settings, accepting a deadline above 30 or of 0, and not recording what changed. **All 29 caught by the tests.**
 - [x] **Architecture test:** rules import no framework, no database and no screens, and modules depend only on allowed modules.
 - [x] **Time zone:** 23:30 in São Paulo is still "today" even though UTC is already tomorrow (tested).
-- [x] **Browser (phone size):** 79 checks on the new flows — main flow in 6 taps; stock question; barber's agenda; no-show with confirmation, disabled before the time; barber has **no** cancel button; booking form; barber opens the register (reason required if different); closing the register with 8 comandas, each option confirmed, final summary — **all pass**. Plus 25 role checks and 15 screens without horizontal scroll.
+- [x] **Browser (phone size):** 79 checks on the new flows — main flow in 6 taps; stock question; barber's agenda; no-show with confirmation, disabled before the time; barber has **no** cancel button; booking form; barber opens the register (reason required if different); closing the register with 8 comandas, each option confirmed, final summary — **all pass**. Round 3 added **30 more** for the Configurações screen (option ON/OFF, invalid deadlines, preview, every screen following the choice, closing the register with the option OFF). Plus 25 role checks and 16 screens without horizontal scroll.
 - [x] `npm run typecheck`, `npm run lint`, `npm run build` pass.
-- [ ] Owner confirmed the 4 points of section 8.6.
+- [x] Owner confirmed points 1, 2 and 3 (section 8.6).
+- [ ] Owner answered the stock question (section 8.8).
 - [ ] Owner approved this document.
 - [ ] (Before step 4) Test with a barbershop **owner**: agenda, no-show, commission and cash-opening rules.
 

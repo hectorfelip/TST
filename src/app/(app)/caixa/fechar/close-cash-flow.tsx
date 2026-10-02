@@ -12,20 +12,25 @@ import { Badge, Card, Note, styles } from "@/components/ui";
 import { formatBRL, toCents, type Cents } from "@/shared/money";
 import type { DayDecision, DayEntry } from "@/prototype/mock-data";
 
-const optionLabel = (option: DayDecision, expiryDays: number): string =>
+/** `expiryDays = null`: this barbershop does not cancel pending comandas by itself. */
+const deadlineText = (expiryDays: number | null): string => (expiryDays === null ? "sem prazo" : `${expiryDays} ${expiryDays === 1 ? "dia" : "dias"}`);
+
+const optionLabel = (option: DayDecision, expiryDays: number | null): string =>
   ({
     no_show: "Cliente não compareceu",
-    keep_pending: `Deixar pendente (${expiryDays} dias)`,
+    keep_pending: `Deixar pendente (${deadlineText(expiryDays)})`,
     discard: "Descartar comanda vazia",
     reviewed: "Conferi: está correto",
   })[option];
 
-function question(option: DayDecision, entry: DayEntry, expiryDays: number): string {
+function question(option: DayDecision, entry: DayEntry, expiryDays: number | null): string {
   switch (option) {
     case "no_show":
       return `Marcar ${entry.client} como não compareceu? A comanda sai da agenda e a falta fica registrada. Não é um cancelamento.`;
     case "keep_pending":
-      return `Deixar a comanda #${entry.number} pendente? Fica ${expiryDays} dias esperando o pagamento e depois é cancelada automaticamente. Você é alertado em cada fechamento.`;
+      return expiryDays === null
+        ? `Deixar a comanda #${entry.number} pendente? Fica esperando o pagamento até você receber ou cancelar. Esta barbearia não cancela pendentes sozinha. Você é alertado em cada fechamento.`
+        : `Deixar a comanda #${entry.number} pendente? Fica ${deadlineText(expiryDays)} esperando o pagamento e depois é cancelada automaticamente. Você é alertado em cada fechamento.`;
     case "discard":
       return `Descartar a comanda vazia #${entry.number}? Não tem itens nem dinheiro envolvido.`;
     case "reviewed":
@@ -49,7 +54,7 @@ function parse(value: string): Cents | null | "invalid" {
   }
 }
 
-export function CloseCashFlow({ expected, entries, expiryDays }: { expected: Cents; entries: DayEntry[]; expiryDays: number }) {
+export function CloseCashFlow({ expected, entries, expiryDays }: { expected: Cents; entries: DayEntry[]; expiryDays: number | null }) {
   const [counted, setCounted] = useState("");
   const [left, setLeft] = useState("");
   const [reason, setReason] = useState("");
@@ -82,7 +87,10 @@ export function CloseCashFlow({ expected, entries, expiryDays }: { expected: Cen
         {chosen("discard").length > 0 && <p>{chosen("discard").length} comanda(s) vazia(s) descartada(s).</p>}
         {chosen("no_show").length > 0 && <p>{chosen("no_show").length} marcada(s) como não compareceu (não é cancelamento).</p>}
         {chosen("keep_pending").length > 0 && (
-          <p>{chosen("keep_pending").length} comanda(s) pendente(s) ({formatBRL(pendingTotal)}): vencem em {expiryDays} dias.</p>
+          <p>
+            {chosen("keep_pending").length} comanda(s) pendente(s) ({formatBRL(pendingTotal)}):{" "}
+            {expiryDays === null ? "sem prazo, ficam até serem pagas ou canceladas por você." : `vencem em ${deadlineText(expiryDays)}.`}
+          </p>
         )}
         {chosen("reviewed").length > 0 && <p>{chosen("reviewed").length} falta(s) com itens conferida(s).</p>}
         <Note>Protótipo: nada foi salvo.</Note>
@@ -188,8 +196,15 @@ export function CloseCashFlow({ expected, entries, expiryDays }: { expected: Cen
                   {entry.items.length > 0 ? entry.items.join(", ") : "Sem itens"}
                   {entry.kind === "no_show_with_items" && " · marcada como não compareceu pelo barbeiro"}
                 </span>
-                {entry.expiresInDays !== null && (
-                  <Badge tone="warning">Pendente · vence em {entry.expiresInDays} {entry.expiresInDays === 1 ? "dia" : "dias"}</Badge>
+                {entry.isPending && (
+                  <Badge tone="warning">
+                    Pendente ·{" "}
+                    {entry.expiresInDays === null
+                      ? "sem prazo"
+                      : entry.expiresInDays === 0
+                        ? "vence hoje"
+                        : `vence em ${entry.expiresInDays} ${entry.expiresInDays === 1 ? "dia" : "dias"}`}
+                  </Badge>
                 )}
 
                 {decision && !isAsking ? (

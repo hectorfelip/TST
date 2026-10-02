@@ -175,7 +175,36 @@ describe("pending expires after N days (R-CMD-22)", () => {
     expect(expirePendingComandas([{ ...pendingFor(10), status: "no_show" }], NOW, 5).comandas).toEqual([]);
   });
 
-  it("the number of days is a setting: 1 day expires a 1-day-old comanda", () => {
+  it("the number of days is custom: 1 day expires a 1-day-old comanda; 30 days waits 29", () => {
     expect(expirePendingComandas([pendingFor(1)], NOW, 1).comandas).toHaveLength(1);
+    expect(expirePendingComandas([pendingFor(29)], NOW, 30).comandas).toEqual([]);
+    expect(expirePendingComandas([pendingFor(30)], NOW, 30).comandas).toHaveLength(1);
+    expect(expirePendingComandas([pendingFor(9)], NOW, 10).comandas).toEqual([]);
+    expect(pendingDaysLeft(pendingFor(2), NOW, 10)).toBe(8);
+  });
+
+  it("OPTION OFF (null): nothing ever expires, no countdown, the owner is still alerted", () => {
+    const old = pendingFor(400);
+    expect(expirePendingComandas([old], NOW, null)).toEqual({ comandas: [], audits: [] });
+    expect(pendingDaysLeft(old, NOW, null)).toBeNull();
+    const s = scene();
+    const pending = { ...s.walkInUnpaid, pendingSince: new Date(EVENING.getTime() - 100 * DAY_MS) };
+    const plan = unwrap(planDayClose(owner, { register: s.register, comandas: [pending], expiryDays: null, at: EVENING }));
+    expect(plan.entries[0]).toMatchObject({ kind: "unpaid", expiresInDays: null, options: ["keep_pending"] });
+    expect(plan.atRiskTotal).toBe(4500); // still shown as money at risk
+  });
+
+  it("OPTION OFF: closing the day still accepts 'keep pending' and starts no countdown", () => {
+    const s = scene();
+    const result = unwrap(closeDay(owner, { ...base(s, { decisions: decideAll(s) }), expiryDays: null }));
+    expect(result.pending.map((c) => c.number)).toEqual([1]);
+    expect(result.audits.map((a) => a.action)).toContain("cash.closed_with_pending");
+  });
+
+  it("PREVIEW before changing the setting: lowering the deadline would cancel the old ones now", () => {
+    const pending = [pendingFor(3), pendingFor(1)];
+    expect(expirePendingComandas(pending, NOW, 5).comandas).toHaveLength(0);
+    expect(expirePendingComandas(pending, NOW, 3).comandas).toHaveLength(1);
+    expect(expirePendingComandas(pending, NOW, 1).comandas).toHaveLength(2);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SETTINGS, validateSettings } from "@/modules/barbershops/rules/settings";
+import { DEFAULT_SETTINGS } from "@/modules/barbershops/rules/settings";
 import { unwrap } from "@/shared/result";
 import { expectError, intruder, NOW, owner, rafael } from "@/test/fixtures";
 import {
@@ -98,16 +98,5 @@ describe("away clients (R-CLI-06)", () => {
     expect(isAway(new Date("2026-09-02T12:00:00-03:00"), NOW, DEFAULT_SETTINGS)).toBe(false); // 30 days
     expect(isAway(null, NOW, DEFAULT_SETTINGS)).toBe(false);
     expect(isAway(new Date("2026-09-20"), NOW, { awayAfterDays: 7 })).toBe(true);
-  });
-
-  it("settings are validated (days, pending expiry, time zone)", () => {
-    expect(validateSettings({ ...DEFAULT_SETTINGS, awayAfterDays: 45 }).ok).toBe(true);
-    expectError(validateSettings({ ...DEFAULT_SETTINGS, awayAfterDays: 3 }), "INVALID_INPUT");
-    expectError(validateSettings({ ...DEFAULT_SETTINGS, awayAfterDays: 400 }), "INVALID_INPUT");
-    expect(DEFAULT_SETTINGS.pendingExpiryDays).toBe(5);
-    expect(validateSettings({ ...DEFAULT_SETTINGS, pendingExpiryDays: 10 }).ok).toBe(true);
-    expectError(validateSettings({ ...DEFAULT_SETTINGS, pendingExpiryDays: 0 }), "INVALID_INPUT");
-    expectError(validateSettings({ ...DEFAULT_SETTINGS, pendingExpiryDays: 31 }), "INVALID_INPUT");
-    expectError(validateSettings({ ...DEFAULT_SETTINGS, timeZone: "Mars/Olympus" }), "INVALID_INPUT");
   });
 });

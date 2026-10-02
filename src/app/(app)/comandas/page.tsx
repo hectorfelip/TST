@@ -7,10 +7,11 @@ import {
   comandaTotal,
   employeeName,
   isComandaOf,
-  PENDING_EXPIRY_DAYS,
   paymentMethodLabel,
+  pendingDaysLeftOf,
   type Comanda,
 } from "@/prototype/mock-data";
+import { getDemoExpiryDays } from "@/prototype/demo-settings";
 import { DEMO_BARBER_ID, getDemoRole } from "@/prototype/demo-role";
 
 function barbersOf(comanda: Comanda): string {
@@ -18,7 +19,7 @@ function barbersOf(comanda: Comanda): string {
   return names.size ? [...names].join(", ") : "Sem itens";
 }
 
-function ComandaRow({ comanda }: { comanda: Comanda }) {
+function ComandaRow({ comanda, expiryDays }: { comanda: Comanda; expiryDays: number | null }) {
   return (
     <li>
       <Link href={`/comandas/${comanda.id}`} className={styles.row}>
@@ -35,7 +36,7 @@ function ComandaRow({ comanda }: { comanda: Comanda }) {
           ) : comanda.status === "nao_compareceu" ? (
             <Badge tone="warning">Não compareceu</Badge>
           ) : comanda.pendingDaysAgo !== undefined ? (
-            <Badge tone="warning">Pendente · {Math.max(0, PENDING_EXPIRY_DAYS - comanda.pendingDaysAgo)}d</Badge>
+            <Badge tone="warning">Pendente{pendingDaysLeftOf(comanda, expiryDays) !== null && ` · ${pendingDaysLeftOf(comanda, expiryDays)}d`}</Badge>
           ) : (
             <strong><Money cents={comandaTotal(comanda)} /></strong>
           )}
@@ -47,6 +48,7 @@ function ComandaRow({ comanda }: { comanda: Comanda }) {
 
 export default async function ComandasPage() {
   const role = await getDemoRole();
+  const expiryDays = await getDemoExpiryDays();
   const visible = role === "owner" ? comandas : comandas.filter((c) => isComandaOf(c, DEMO_BARBER_ID));
   // Appointments for tomorrow live in the Agenda, not in today's open list.
   const open = visible.filter((c) => c.status === "aberta" && c.appointment?.day !== "amanha");
@@ -56,10 +58,10 @@ export default async function ComandasPage() {
     <>
       <PageHeader title="Comandas" subtitle={role === "owner" ? "Hoje · todas" : "Hoje · só as minhas"} action={<ButtonLink href="/comandas/nova">+ Nova comanda</ButtonLink>} />
       <Card title={`Abertas (${open.length})`}>
-        <ul className={styles.list}>{open.map((c) => <ComandaRow key={c.id} comanda={c} />)}</ul>
+        <ul className={styles.list}>{open.map((c) => <ComandaRow key={c.id} comanda={c} expiryDays={expiryDays} />)}</ul>
       </Card>
       <Card title={`Fechadas, canceladas e faltas (${done.length})`}>
-        <ul className={styles.list}>{done.map((c) => <ComandaRow key={c.id} comanda={c} />)}</ul>
+        <ul className={styles.list}>{done.map((c) => <ComandaRow key={c.id} comanda={c} expiryDays={expiryDays} />)}</ul>
       </Card>
     </>
   );

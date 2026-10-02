@@ -8,13 +8,15 @@ import {
   comandas,
   comandaTotal,
   employeeName,
+  expiryText,
   isComandaOf,
-  PENDING_EXPIRY_DAYS,
+  pendingDaysLeftOf,
   products,
   services,
 } from "@/prototype/mock-data";
 import { DEMO_BARBER_ID, getDemoRole } from "@/prototype/demo-role";
 import { NoAccess } from "@/prototype/owner-only";
+import { getDemoExpiryDays } from "@/prototype/demo-settings";
 
 const statusLabel = { aberta: "Aberta", fechada: "Fechada", cancelada: "Cancelada", nao_compareceu: "Não compareceu" } as const;
 
@@ -27,7 +29,9 @@ export default async function ComandaPage(props: PageProps<"/comandas/[id]">) {
 
   const isOpen = comanda.status === "aberta";
   const isEmpty = comanda.items.length === 0;
-  const pendingLeft = comanda.pendingDaysAgo === undefined ? null : Math.max(0, PENDING_EXPIRY_DAYS - comanda.pendingDaysAgo);
+  const expiryDays = await getDemoExpiryDays();
+  const isPending = comanda.pendingDaysAgo !== undefined;
+  const pendingLeft = pendingDaysLeftOf(comanda, expiryDays);
   const favorites = services.filter((s) => s.favorite && s.active);
   const forSale = products.filter((p) => p.use === "venda");
 
@@ -46,12 +50,16 @@ export default async function ComandaPage(props: PageProps<"/comandas/[id]">) {
           </p>
         </Card>
       )}
-      {pendingLeft !== null && (
+      {isPending && (
         <Card>
           <p>
-            <Badge tone="warning">Pendente · vence em {pendingLeft} {pendingLeft === 1 ? "dia" : "dias"}</Badge>
+            <Badge tone="warning">Pendente{pendingLeft !== null && ` · ${expiryText(pendingLeft)}`}</Badge>
           </p>
-          <Note>Se não for paga até lá, é cancelada automaticamente. Para receber, use &quot;Fechar comanda&quot;.</Note>
+          <Note>
+            {pendingLeft !== null
+              ? 'Se não for paga até lá, é cancelada automaticamente. Para receber, use "Fechar comanda".'
+              : 'Esta barbearia não cancela pendentes sozinha: fica aqui até ser paga ou cancelada pelo dono. Para receber, use "Fechar comanda".'}
+          </Note>
         </Card>
       )}
       {comanda.status === "nao_compareceu" && (

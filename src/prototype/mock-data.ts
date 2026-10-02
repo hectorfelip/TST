@@ -64,11 +64,19 @@ export type Comanda = {
   payment?: PaymentMethod;
   /** Set when this comanda is an appointment ("agendamento"). */
   appointment?: { day: "hoje" | "amanha"; time: string; barberId: string };
-  /** Days since the owner chose "keep pending" at closing. Expires after PENDING_EXPIRY_DAYS. */
+  /** Days since the owner chose "keep pending" at closing. */
   pendingDaysAgo?: number;
 };
 
-export const PENDING_EXPIRY_DAYS = 5;
+/** Days left before a pending comanda is cancelled; null = not pending, or the shop turned the option off. */
+export function pendingDaysLeftOf(comanda: Comanda, expiryDays: number | null): number | null {
+  if (comanda.pendingDaysAgo === undefined || expiryDays === null) return null;
+  return Math.max(0, expiryDays - comanda.pendingDaysAgo);
+}
+
+export function expiryText(daysLeft: number): string {
+  return daysLeft === 0 ? "vence hoje" : `vence em ${daysLeft} ${daysLeft === 1 ? "dia" : "dias"}`;
+}
 /** The prototype's "now" for the day screens (Tuesday 29/09). */
 export const NOW_LABEL = "10:35";
 
@@ -246,6 +254,9 @@ export type DayEntry = {
   items: string[];
   total: Cents;
   options: DayDecision[];
+  /** Already pending from a previous day. */
+  isPending: boolean;
+  /** Days until it is cancelled; null when not pending or when the shop's option is off. */
   expiresInDays: number | null;
 };
 
@@ -254,7 +265,7 @@ export type DayEntry = {
  * planDayClose in the rules). The prototype treats the closing as the end of
  * the day: every appointment of today is already due.
  */
-export function dayCloseEntries(): DayEntry[] {
+export function dayCloseEntries(expiryDays: number | null): DayEntry[] {
   const entries: DayEntry[] = [];
   for (const c of comandas) {
     const base = {
@@ -272,13 +283,14 @@ export function dayCloseEntries(): DayEntry[] {
           ...base,
           kind: "unpaid",
           options: c.appointment ? ["no_show", "keep_pending"] : ["keep_pending"],
-          expiresInDays: c.pendingDaysAgo === undefined ? null : Math.max(0, PENDING_EXPIRY_DAYS - c.pendingDaysAgo),
+          isPending: c.pendingDaysAgo !== undefined,
+          expiresInDays: pendingDaysLeftOf(c, expiryDays),
         });
       } else {
-        entries.push({ ...base, kind: "empty", options: c.appointment ? ["no_show"] : ["discard"], expiresInDays: null });
+        entries.push({ ...base, kind: "empty", options: c.appointment ? ["no_show"] : ["discard"], isPending: false, expiresInDays: null });
       }
     } else if (c.status === "nao_compareceu" && c.items.length > 0) {
-      entries.push({ ...base, kind: "no_show_with_items", options: ["reviewed"], expiresInDays: null });
+      entries.push({ ...base, kind: "no_show_with_items", options: ["reviewed"], isPending: false, expiresInDays: null });
     }
   }
   return entries.sort((a, b) => a.number - b.number);

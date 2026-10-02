@@ -9,7 +9,10 @@
  * 3. Barbers do not cancel. "Client did not come" = no-show (paused, recorded),
  *    never a cancellation.
  * 4. Every option needs a confirmation step (`confirmed`) to avoid mistakes.
- * 5. Pending comandas expire after N days (default 5) and are then cancelled.
+ * 5. Pending comandas expire after N days (default 5, custom 1–30) and are then
+ *    cancelled by the system — but only if the barbershop kept this OPTION on.
+ *    `expiryDays = null` means the option is off: pending comandas wait until
+ *    the owner pays or cancels them, and are still alerted at every closing.
  *
  * What the owner can decide, per comanda:
  *
@@ -51,9 +54,13 @@ export type DayClosePlan = {
   atRiskTotal: Cents;
 };
 
-/** Whole days left until a pending comanda is cancelled (0 = expires today). */
-export function pendingDaysLeft(comanda: Pick<Comanda, "pendingSince">, now: Date, expiryDays: number): number | null {
-  if (!comanda.pendingSince) return null;
+/**
+ * Whole days left until a pending comanda is cancelled (0 = expires today).
+ * `null` when it is not pending, or when the shop turned the automatic
+ * cancellation off (`expiryDays = null`).
+ */
+export function pendingDaysLeft(comanda: Pick<Comanda, "pendingSince">, now: Date, expiryDays: number | null): number | null {
+  if (!comanda.pendingSince || expiryDays === null) return null;
   const expiresAt = comanda.pendingSince.getTime() + expiryDays * DAY_MS;
   return Math.max(0, Math.ceil((expiresAt - now.getTime()) / DAY_MS));
 }
@@ -65,7 +72,7 @@ export function pendingDaysLeft(comanda: Pick<Comanda, "pendingSince">, now: Dat
  */
 export function planDayClose(
   ctx: TenantContext,
-  input: { register: CashRegister | null; comandas: readonly Comanda[]; expiryDays: number; at: Date },
+  input: { register: CashRegister | null; comandas: readonly Comanda[]; expiryDays: number | null; at: Date },
 ): Result<DayClosePlan> {
   const allowed = requirePermission(ctx, "cash.close");
   if (!allowed.ok) return allowed;
@@ -129,7 +136,7 @@ export function closeDay(
     reason: string | null;
     decisions: Readonly<Record<string, DayDecision>>;
     confirmed: boolean;
-    expiryDays: number;
+    expiryDays: number | null;
     at: Date;
   },
 ): Result<DayCloseResult> {
@@ -190,14 +197,20 @@ export function closeDay(
  * cancelled by the SYSTEM (run once a day by a scheduled job, step 5). The
  * owner is alerted about every pending comanda at each closing, with the days
  * left, so this should never be a surprise. Each expiry is audited.
+ * `expiryDays = null` (option off) never cancels anything.
+ *
+ * It is also the PREVIEW for the settings screen: before the owner lowers the
+ * deadline or turns the option on, call it with the new value to tell him how
+ * many pending comandas would be cancelled right away.
  */
 export function expirePendingComandas(
   comandas: readonly Comanda[],
   now: Date,
-  expiryDays: number,
+  expiryDays: number | null,
 ): { comandas: Comanda[]; audits: AuditEntry[] } {
   const expired: Comanda[] = [];
   const audits: AuditEntry[] = [];
+  if (expiryDays === null) return { comandas: expired, audits };
   for (const comanda of comandas) {
     if (comanda.status !== "open" || !comanda.pendingSince) continue;
     if (now.getTime() - comanda.pendingSince.getTime() < expiryDays * DAY_MS) continue;

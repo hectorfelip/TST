@@ -105,6 +105,7 @@ lies. "How did you do it last week?" gets facts.
 7b. "O que acontece hoje quando o cliente marcado não aparece? Já aconteceu de um barbeiro dizer que o cliente faltou e depois ter dúvida?" *(no-show)*
 7c. "Quem abre o caixa de manhã? E o que fica na gaveta de um dia pro outro?" *(barber opens; opening cash compared with yesterday)*
 7d. "Já vendeu produto que o sistema dizia que não tinha, mas estava na prateleira?" *(stock confirmation)*
+7e. "Um serviço que foi feito e o cliente não pagou: o que acontece hoje? Quanto tempo você espera antes de desistir?" *(pending comandas: option and deadline)*
 
 **Priority**
 8. "Se você só pudesse ter UMA tela dessas, qual seria?"

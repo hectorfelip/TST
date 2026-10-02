@@ -25,6 +25,7 @@ const navByRole: Record<Role, { mobile: NavItem[]; desktop: NavItem[] }> = {
       { href: "/estoque", label: "Estoque" },
       { href: "/equipe", label: "Equipe" },
       { href: "/relatorios", label: "Relatórios" },
+      { href: "/configuracoes", label: "Configurações" },
     ],
   },
   barber: {

@@ -9,6 +9,7 @@ const ownerLinks = [
   { href: "/estoque", label: "Estoque" },
   { href: "/equipe", label: "Equipe" },
   { href: "/relatorios", label: "Relatórios" },
+  { href: "/configuracoes", label: "Configurações" },
   { href: "/login", label: "Sair" },
 ];
 

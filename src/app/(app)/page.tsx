@@ -9,12 +9,14 @@ import {
   comandas,
   comandaTotal,
   isComandaOf,
+  expiryText,
   openToday,
-  PENDING_EXPIRY_DAYS,
+  pendingDaysLeftOf,
   products,
   type Comanda,
 } from "@/prototype/mock-data";
 import { AgendaList } from "@/prototype/agenda-list";
+import { getDemoExpiryDays } from "@/prototype/demo-settings";
 import { DEMO_BARBER_ID, getDemoRole } from "@/prototype/demo-role";
 
 function OpenComandas({ list }: { list: Comanda[] }) {
@@ -66,7 +68,8 @@ function BarberDashboard() {
   );
 }
 
-function OwnerDashboard() {
+async function OwnerDashboard() {
+  const expiryDays = await getDemoExpiryDays();
   const closed = comandas.filter((c) => c.status === "fechada");
   const open = openToday();
   const pending = comandas.filter((c) => c.pendingDaysAgo !== undefined);
@@ -104,7 +107,11 @@ function OwnerDashboard() {
                 <Link href={`/comandas/${c.id}`} className={styles.row}>
                   <span className={styles.rowMain}>
                     <span>#{c.number} · {clientName(c.clientId)}</span>
-                    <span className={styles.rowMeta}>Vence em {Math.max(0, PENDING_EXPIRY_DAYS - (c.pendingDaysAgo ?? 0))} dias, depois é cancelada</span>
+                    <span className={styles.rowMeta}>
+                      {pendingDaysLeftOf(c, expiryDays) !== null
+                        ? `${expiryText(pendingDaysLeftOf(c, expiryDays) ?? 0)}, depois é cancelada`
+                        : "Sem prazo: espera ser paga ou cancelada pelo dono"}
+                    </span>
                   </span>
                   <strong><Money cents={comandaTotal(c)} /></strong>
                 </Link>
@@ -137,5 +144,5 @@ function OwnerDashboard() {
 }
 
 export default async function DashboardPage() {
-  return (await getDemoRole()) === "barber" ? <BarberDashboard /> : <OwnerDashboard />;
+  return (await getDemoRole()) === "barber" ? <BarberDashboard /> : await OwnerDashboard();
 }
