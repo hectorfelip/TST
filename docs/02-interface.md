@@ -184,7 +184,54 @@ barber: [Meu dia](img/02-mobile-barbeiro.png) · computer: [Painel](img/02-deskt
 
 ## 11. Feedback from the barbershop owner
 
-_Empty — fill after the demo, using the form at the end of the [demo guide](02-demo-guide.md)._
+Date: 02/10/2026
+Barbershop (no personal data needed): Barber pro
+People who tested: owner [ ]  barber [x]
+
+Task results
+| # | Done? | Time | Where he hesitated / what he said |
+|---|-------|------|-----------------------------------|
+| 1 |   false    |   50c   | Ao escolher “Cliente avulso”, fui levado à comanda #1027 de Pedro Alves, já com R$ 115,00 em itens. Não confirmei o pagamento para não atribuí-lo ao cliente errado. Assim, o fluxo não cumpriu a meta de até 6 toques e 30 segundos.|
+| 2 |   true    |   10 sec   |R$ 216,90, visível diretamente no painel do dono.|
+| 3 |    true   |   20 sec   |R$ 128,50, encontrado em Caixa. A conta exibida confere: R$ 100,00 + R$ 47,00 − R$ 18,50.|
+| 4 |    true   |   20 sec   |Pomada modeladora e lâmina descartável, sinalizadas no painel e abaixo do mínimo no estoque.                                   |
+| 5 |   true    |   10 sec   |O selo “Sumido” aparece para Marcos Lima e Lucas Rocha.|
+| 6 |   true    |   15 sec   |Carlos, com R$ 7.120,00 em setembro.|
+| 7 |   true    |   25 sec   |A lista mostra apenas as comandas dele; uma comanda de Diego e os relatórios exibem “Sem acesso”.|
+
+Answers to the questions (his exact words when possible):
+1“Como foi o fechamento do caixa ontem?” Não acompanhei o fechamento de ontem. Pelo fluxo apresentado, eu conferiria as comandas pagas, contaria o dinheiro físico, compararia com o valor Esperado, lançaria qualquer diferença e só então fecharia o caixa. A tela informa que mostrará a diferença após a contagem; esse fechamento completo ainda precisaria ser testado.
+
+2“E se não bater?” Conto de novo, confiro troco inicial, pagamentos em dinheiro, despesas e sangrias. Também verifico se algum Pix foi marcado como dinheiro. Se a diferença continuar, registro valor e motivo e aviso o dono. Não ajustaria o número só para zerar a diferença.
+
+3“Quanto cada barbeiro tem a receber hoje?” Hoje eu não consigo saber pela tela. O relatório mostra quanto cada um faturou no mês, mas faturamento não é comissão a pagar. Faltam regras de comissão, descontos aplicáveis, período de apuração e um demonstrativo por barbeiro.
+
+4“Pagamento metade Pix, metade dinheiro acontece?” Acontece, mas eu não colocaria uma frequência sem medir as comandas reais. Deixar para a versão 2 é aceitável se houver um procedimento claro para registrar esses casos no piloto; caso sejam frequentes, essa limitação vai atrapalhar o caixa já no primeiro dia.
+
+5“Como funciona a comissão?” Não dá para presumir que seja igual para todos ou para todos os serviços. Eu trataria como urgente antes de usar o sistema para calcular repasses. Pode ficar fora do primeiro lançamento se o dono continuar calculando e conferindo as comissões separadamente.
+
+6“Usariam o próprio celular?” Sim. Abrir a comanda ao lado da cadeira economiza ida ao balcão. Eu testaria a tela em celular, com uma mão, conexão instável e durante atendimento. Cada barbeiro precisa de acesso individual; no protótipo, a troca entre dono e Rafael é apenas um botão de demonstração.
+
+7“Quem dá desconto?” Só o dono. Testei isso: no perfil Rafael, o fechamento informa a restrição; ao trocar para dono, aparece o campo de desconto. Eu manteria essa regra e registraria quem autorizou e quanto concedeu.
+
+8“Se pudesse ter uma tela?” Comandas. É onde eu passaria o dia: abrir atendimento, lançar corte ou produto, conferir total e receber. O painel é útil, mas a comanda resolve o trabalho na cadeira.
+
+9“O que procurou e não achou?” Uma nova comanda avulsa de verdade: ao selecionar “Cliente avulso”, fui parar na comanda existente de Pedro Alves. Também procurei pagamento dividido e um valor de comissão a receber.
+
+10“O que nunca usaria?” Como barbeiro, eu quase nunca abriria relatórios financeiros gerais, estoque ou fechamento do caixa; deixaria essas rotinas com o dono ou responsável. Não eliminaria essas telas do produto, pois são úteis para outro perfil.
+
+11 Sem resposta
+
+Top 3 problems found:
+1.“Cliente avulso” não cria uma comanda nova e vazia, vinculada a Rafael, antes de permitir lançar o corte e escolher Pix.
+2.Rafael consegue ver todos os clientes, telefones e o histórico de Marcos com Carlos. Se a carteira de clientes deve ser compartilhada, a interface pode deixar isso claro.
+3.
+
+Things he asked for that are NOT in the MVP:
+- null
+
+Did anything change our decisions (split payment, commission, discount)?
+- false
 
 ## Glossary
 
