@@ -121,7 +121,7 @@ Safe to call twice. Without the secret it answers 401. It is the **only** place 
 1. **Login by password stored by us:** ✅ **kept** (decided). An external login service can be reconsidered later with real feedback.
 2. **Force a new password at the first login:** ✅ **yes** (decided, done: migration `004_temporary_passwords.sql`).
 3. **Session length:** ✅ **one day** (decided, done).
-4. **Where does the online demo live?** ⏳ Open. The code is ready for any host with Node. Creating the Supabase project (database) and the hosting account needs your explicit go, see the chat answer.
+4. **Where does the online demo live?** ✅ **Supabase (database) + Vercel (app)**, created on your explicit go. See section 13.
 
 ## 11. Handover to Step 6 (Review)
 
@@ -138,6 +138,25 @@ Safe to call twice. Without the secret it answers 401. It is the **only** place 
 - [x] **Mistakes planted on purpose were caught:** lock threshold changed to 500, the transaction queue removed, the rollback on refusal removed.
 - [x] Owner answered decisions 1–3 of section 10 (4, the hosting, is open).
 - [ ] Owner approved this document.
+
+## 13. The online demo
+
+| Piece | Where | Notes |
+|---|---|---|
+| App | Vercel, project `barbearia-mvp`, region **gru1 (São Paulo)**, deploys on every push to the repository's default branch | Address: `https://barbearia-mvp-phi.vercel.app` (alias `barbearia-mvp-hector4.vercel.app`). Vercel's own login wall was **turned off** so the owner can open it; the app has its own login. |
+| Database | Supabase project `barbearia-mvp` (`tlyeghoaclgiwwsycouu`), region **sa-east-1 (São Paulo)** | Migrations 001–006 applied through the Supabase connector (the build machine cannot reach Postgres directly: the direct address is IPv6-only). They are recorded in `schema_migrations` with the real checksums, so a later `npm run db:migrate` sees them as done. |
+| Connection | The app uses **only** `app_user` through the **transaction pooler**; the owner password was never created or stored anywhere | Secrets (`DATABASE_URL`, `SESSION_SECRET`, `CRON_SECRET`) live only in Vercel's environment variables. |
+| Daily job | `vercel.json` cron at 06:00 UTC (03:00 São Paulo) calls `/api/jobs/expiry` | Vercel sends the `CRON_SECRET` as the Bearer token by itself. |
+| Health check | `/api/health` answers `{"app":"ok","db":"ok"}` | If `db` is `error`, only a short code is shown. |
+
+**Checked on the database** (after the migrations): the three Supabase platform roles have **0** doors into any table or function; the security advisor found only the "mutable search_path" warnings, fixed by migration 006; the structure (functions, columns, 121 constraints) is identical to the one the tests run on.
+
+**Demo data:** "Barbearia Exemplo" with Carlos (owner), Rafael and Diego (barbers), 6 services, 5 products with stock, 4 clients. **No fake day of comandas:** the owner opens the register and works live (a pre-made day would show "late" appointments the next morning). Every demo password is **temporary** (the first login forces a new one).
+
+**Limits you should know**
+- Vercel **Hobby** plan is for **non-commercial** use and has one build at a time. A paying barbershop means the Pro plan.
+- Supabase **free** plan: no automatic backups (decision 3 of step 4 is still a manual `npm run db:backup`, which needs the database password: reset it in the Supabase dashboard first) and projects idle for a week or so may be **paused**. Check before every demo.
+- If the transaction pooler address differs from `aws-1-sa-east-1.pooler.supabase.com`, `/api/health` shows `db: error`. The fix is to copy the right address from Supabase (Connect → Transaction pooler) into the `DATABASE_URL` variable in Vercel.
 
 ## Glossary (new words)
 
