@@ -15,7 +15,8 @@
     "db:test-stop": "bash scripts/test-db.sh stop",
     "test:db": "vitest run --config vitest.db.config.mts",
     "test:all": "npm test && npm run test:db",
-    "db:seed": "tsx scripts/seed-demo.mts"
+    "db:seed": "tsx scripts/seed-demo.mts",
+    "db:backup": "tsx scripts/backup.mts"
   },
   "dependencies": {
     "next": "16.3.7",

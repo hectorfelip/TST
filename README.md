@@ -34,6 +34,7 @@ PostgreSQL 15 or newer. Copy `.env.example` to `.env.local` and fill it in.
 npm run db:migrate                 # creates / updates the tables (DATABASE_ADMIN_URL)
 npm run db:create-barbershop -- "Barbearia X" "Nome do Dono" dono@email.com
 npm run db:seed                    # a demo barbershop with a whole day of data
+npm run db:backup                  # a full copy of the database in one file (schedule it daily; see docs/04-data.md section 13)
 ```
 
 Tests against a **real** PostgreSQL (each test file gets its own database):

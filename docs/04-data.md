@@ -22,8 +22,8 @@ The screens are **not** connected yet. That is step 5.
 
 | Decision | Choice | Why | Cost / risk |
 |----------|--------|-----|-------------|
-| Database | **PostgreSQL ≥ 15** | Reliable for money; has the features we need (see below). | You need a hosted PostgreSQL for the real use (section 11). |
-| How to define tables | **Plain SQL migrations** (`db/migrations/*.sql`) + the **`pg` driver**, **not Prisma** *(changes what step 1 suggested)* | The guarantees promised in steps 1 and 3 are PostgreSQL features that Prisma's schema file **cannot express**: Row Level Security, "only one open register" (partial unique index), append-only history (triggers), per-barbershop numbering. I would write them in raw SQL anyway, and Prisma would be one more layer (and Prisma 7 changed a lot). | We lose automatic typed queries. Compensation: typed repository functions + 104 database tests. If you prefer Prisma for the simple queries later, it can read this same schema. |
+| Database | **PostgreSQL ≥ 15**, hosted on **Supabase** (decided) | Reliable for money; has the features we need (see below). | We use only its PostgreSQL, not its web API or login (section 13). |
+| How to define tables | **Plain SQL migrations** (`db/migrations/*.sql`) + the **`pg` driver**, **not Prisma** *(changes what step 1 suggested)* | The guarantees promised in steps 1 and 3 are PostgreSQL features that Prisma's schema file **cannot express**: Row Level Security, "only one open register" (partial unique index), append-only history (triggers), per-barbershop numbering. I would write them in raw SQL anyway, and Prisma would be one more layer (and Prisma 7 changed a lot). | We lose automatic typed queries. Compensation: typed repository functions + 116 database tests. If you prefer Prisma for the simple queries later, it can read this same schema. |
 | Isolation between barbershops | **Row Level Security** + `barbershop_id` everywhere + composite foreign keys | Three independent locks (section 5). | See "what it does not cover". |
 | Money | **integer cents** in every column | `0.1 + 0.2` problem (step 1). The driver refuses `45.5` for an integer column. | — |
 | Ids | **UUID**, created by the application | Cannot be guessed or counted; known before saving. | — |
@@ -175,9 +175,9 @@ the timing.
 | **Using the owner connection in the application by mistake** | Row Level Security would silently stop working | `assertSafeAppRole` + automatic test: modules cannot import the admin connection. |
 | **Comanda numbers serialize** | Two barbers opening a comanda wait for each other on one row | It lasts milliseconds; one barbershop opens a handful of comandas per hour. |
 | **Row Level Security cost** | Every query carries the policy | Every index starts with `barbershop_id`; fine for the MVP. Measure with `EXPLAIN` at scale. |
-| **Hosting and poolers** | Some providers force a connection pooler or a default role that bypasses Row Level Security | The tenant is set per transaction (works with transaction poolers) and the app uses its **own** role. Never use the provider's "service role". |
+| **Hosting and poolers** | Some providers force a connection pooler or a default role that bypasses Row Level Security | The tenant is set per transaction (works with transaction poolers) and the app uses its **own** role. Never use the provider's "service role". Supabase's ready-made roles are locked out by migration 002 (section 13). |
 | **No offline mode** | The shop stops without internet | Unchanged: version 2 (step 1). |
-| **Backups, retention, deleting a whole barbershop** | Not covered by the schema | Backups are the hosting provider's job (point-in-time recovery is worth the price). Off-boarding a barbershop and data export are not in the MVP. |
+| **Backups, retention, deleting a whole barbershop** | A restore that was never tried may fail when it is needed; a backup kept only at the provider is lost with the project | Daily backups (decision 3): `npm run db:backup` + automatic restore test + copy off-site (section 13). Off-boarding a barbershop and data export are not in the MVP. |
 | **Stock can still go negative in a race** | Two barbers may each sell the "last" unit | Accepted (rule 3): the confirmation question is audited and the owner sees the negative stock. |
 
 ## 10. Handover to Step 5 (Communication)
@@ -194,13 +194,13 @@ The API / server actions must:
 
 ## 11. Decisions for you
 
-1. **Where will the real PostgreSQL live?** Any PostgreSQL ≥ 15 where I can create the `app_user` role works. I recommend a managed one with a free tier (**Supabase** or **Neon**) for the owner demo. This is needed to put the demo online (step 5/6), not to continue developing.
-2. **Do you accept using plain SQL migrations instead of Prisma?** (section 2). It is the biggest change from step 1.
-3. **Backups:** for the first real barbershop, do you want automatic **point-in-time recovery** (a paid plan on most providers) or daily backups are enough?
+1. **Where will the real PostgreSQL live?** ✅ **Supabase** (decided). How we use it safely: section 13.
+2. **Plain SQL migrations instead of Prisma?** ⏳ **Open.** You asked for the effects first; they are in the chat answer. Nothing else in the project depends on the answer for now (the screens and the rules do not change either way).
+3. **Backups:** ✅ **Daily backups** (decided; no point-in-time recovery for now). What it really means in Supabase: section 13.
 
 ## 12. My verification of this step
 
-- [x] **104 tests on a real PostgreSQL** + **186 unit tests** of the rules and the architecture. All pass, **3 runs in a row** (no flaky test).
+- [x] **116 tests on a real PostgreSQL** + **186 unit tests** of the rules and the architecture. All pass, **3 runs in a row** (no flaky test).
 - [x] **Isolation:** with no barbershop set the application sees **nothing** in 13 tables/views; with a barbershop it sees only its rows in every table; it cannot read, update, move or insert rows of another one; it cannot link data across barbershops, **not even with the owner connection**.
 - [x] **History:** nobody can update, delete or truncate movements or the audit log, **including the database owner**.
 - [x] **Atomicity:** a failure in the **last** step of a payment rolls back the comanda and the cash movement already written (tested by sabotaging the stock movement); once fixed, the same payment works.
@@ -208,8 +208,32 @@ The API / server actions must:
 - [x] **Breaking the database on purpose:** 20 deliberate breaks (policy removed, foreign key weakened, unique index removed, history trigger removed, DELETE granted, numbering by `max()+1`, view without security, tenant leaking between transactions, a missing lock in 3 places, audit not saved, removed items not saved, errors not translated…). **19 caught.** The 20th (the expiry job not checking the option) changes nothing, because the rule already covers it: defence in depth.
 - [x] **Real command-line tools tried:** `db:migrate` (twice: the second does nothing), `db:create-barbershop`, `db:seed` (a whole day through the real commands matches the prototype: cash R$ 128,50).
 - [x] `npm run typecheck`, `npm run lint`, `npm run build` pass.
-- [ ] Owner answered the 3 decisions of section 11.
+- [x] Supabase hardening (migration 002) and backup + **real restore** tested (12 new database tests).
+- [ ] Owner answered the 3 decisions of section 11 (2 of 3 answered; the Prisma one is open).
 - [ ] Owner approved this document.
+
+## 13. Supabase: how we use it (and what it does not do for us)
+
+Supabase is a PostgreSQL with extra services around it. We use **only the PostgreSQL**. Facts below were checked in Supabase's official documentation.
+
+**Safety**
+- Supabase creates three roles (`anon`, `authenticated`, `service_role`) and, by default, gives them rights on every new table, then offers a web API (the *Data API*) that uses them. **We never use that API**, so migration `002_lock_out_platform_roles.sql` removes every right of those three roles, on existing and future tables, views, sequences and functions (including the login function). It does nothing on a plain PostgreSQL. A test (`hosted.db.test.ts`) simulates Supabase's defaults, checks that the doors were really open before, and closed after. *In the Supabase dashboard, also turn the Data API off if you do not use it* (belt and braces).
+- The application connects as **`app_user`** (never the `service_role` key, which ignores Row Level Security).
+
+**Connections (3 kinds)**
+
+| Used by | Connection | Why |
+|---------|-----------|-----|
+| `npm run db:migrate`, `db:backup` | **Direct** connection (or the pooler in *session* mode) | The migration holds a lock for the whole run; the *transaction* pooler would break it. The direct address is IPv6 only; if your machine has no IPv6, use the session pooler. |
+| The running application (step 5) | **Pooler, transaction mode** | Many short-lived server instances. Our tenant is set per transaction (`set_config(..., true)`), so it is safe here. The user name has the form `app_user.<project-ref>`. |
+| Tests | A local PostgreSQL | Never test against the real database. |
+
+**Backups (decision 3: daily)**
+- Supabase makes **automatic daily backups only on the paid plans** (Pro keeps 7 days, Team 14, Enterprise 30). **The free plan has none:** it is up to us. `npm run db:backup` saves a full copy to one file; schedule it daily and copy the file **outside** Supabase (another cloud or disk), otherwise a lost project loses its backups too.
+- Point-in-time recovery (restore to any second) is a paid add-on and replaces the daily backups. Not chosen: with daily backups, **up to 24 hours of data can be lost** in the worst case. It is a conscious risk that must be told to each shop (a day of comandas and cash would have to be re-typed by hand from Pix receipts and notes).
+- **A backup that was never restored is only a hope.** `backup.db.test.ts` saves a database with data, restores it into a new one and checks that the data, Row Level Security and the history protection are still there. Doing the same once with the real Supabase project is part of step 6.
+- How to restore: (1) create an empty database; (2) make sure the role `app_user` exists on the server (**roles and their passwords are not inside backups**: create it, then `ALTER ROLE app_user PASSWORD ...`); (3) restore the file with `pg_restore`. The backup does not include files stored in Supabase Storage (we do not use it). A restore means downtime.
+- `pg_dump` must be the same version as the server or newer (`PG_DUMP_BIN` chooses the program).
 
 ## Glossary
 
