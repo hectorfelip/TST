@@ -180,7 +180,7 @@ outside the system. If closing ignores it silently, nobody notices.
    cancellation stays in the audit log. In step 5, the owner dashboard should
    show **cancellations per barber**.
 3. **Pending comandas can pile up forever** if nobody looks at them.
-   → Step 2 screens will mark them **"pendente desde DD/MM"** on the
+   → In step 5, the real screens will mark them **"pendente desde DD/MM"** on the
    dashboard (rule helper `isPendingFromBefore` is ready).
 
 ## 9. My verification of this step
