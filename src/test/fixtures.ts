@@ -27,7 +27,7 @@ let seq = 0;
 export const nextId = (prefix = "id") => `${prefix}-${++seq}`;
 
 export function openCash(openingCash = 10000): { register: CashRegister; movements: CashMovement[] } {
-  const { register, movement } = unwrap(openRegister(owner, { id: nextId("reg"), openingCash, at: NOW }, null));
+  const { register, movement } = unwrap(openRegister(owner, { id: nextId("reg"), openingCash, reason: null, at: NOW }, null, null));
   return { register, movements: [movement] };
 }
 
@@ -39,8 +39,24 @@ export function withService(comanda: Comanda, ctx: TenantContext, service: Servi
   return unwrap(addItem(ctx, comanda, { itemId: nextId("item"), source: { kind: "service", service }, quantity: 1, barber: barberRef(barber), at: NOW }));
 }
 
-export function withProduct(comanda: Comanda, ctx: TenantContext, product: Product = pomada, quantity = 1): Comanda {
-  return unwrap(addItem(ctx, comanda, { itemId: nextId("item"), source: { kind: "product", product }, quantity, barber: barberRef(ctx), at: NOW }));
+export function withProduct(comanda: Comanda, ctx: TenantContext, product: Product = pomada, quantity = 1, confirmInHand = false): Comanda {
+  return unwrap(addItem(ctx, comanda, { itemId: nextId("item"), source: { kind: "product", product }, quantity, barber: barberRef(ctx), confirmInHand, at: NOW }));
+}
+
+export const HOUR = 60 * 60 * 1000;
+export const clientRef = (id = "c1") => ({ id, barbershopId: SHOP, anonymizedAt: null });
+
+/** A comanda opened in advance for a client, with a barber, `hoursAhead` hours after NOW. */
+export function appointment(ctx: TenantContext, number: number, hoursAhead: number, barber: TenantContext = ctx, clientId = "c1"): Comanda {
+  return unwrap(
+    openComanda(ctx, {
+      id: nextId("cmd"),
+      number,
+      client: clientRef(clientId),
+      at: NOW,
+      appointment: { at: new Date(NOW.getTime() + hoursAhead * HOUR), barber: barberRef(barber) },
+    }),
+  );
 }
 
 export function expectError(result: { ok: boolean; error?: { code: string } } | { ok: true; value: unknown }, code: string) {

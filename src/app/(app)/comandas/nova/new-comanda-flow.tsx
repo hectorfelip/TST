@@ -11,10 +11,10 @@ import { Card, Note, styles } from "@/components/ui";
 import { formatBRL, toCents, type Cents } from "@/shared/money";
 import type { Role } from "@/shared/tenant";
 
-type Option = { id: string; name: string; price: Cents };
+type Option = { id: string; name: string; price: Cents; stock?: number };
 type Person = { id: string; name: string };
 type Method = "pix" | "dinheiro" | "debito" | "credito";
-type Item = { key: number; name: string; price: Cents; barberId: string };
+type Item = { key: number; name: string; price: Cents; barberId: string; noStock?: boolean };
 
 const methodLabel: Record<Method, string> = { pix: "Pix", dinheiro: "Dinheiro", debito: "Débito", credito: "Crédito" };
 
@@ -53,6 +53,8 @@ export function NewComandaFlow({
   const [received, setReceived] = useState("");
   const [discount, setDiscount] = useState("");
   const [note, setNote] = useState("");
+  // R-STK-04: not enough stock in the system -> the person must confirm he has the product in hand.
+  const [stockQuestion, setStockQuestion] = useState<Option | null>(null);
 
   const reset = () => {
     setStep("cliente");
@@ -154,7 +156,13 @@ export function NewComandaFlow({
   }
 
   if (step === "itens") {
-    const add = (o: Option) => setItems((list) => [...list, { key: Date.now() + list.length, name: o.name, price: o.price, barberId }]);
+    const add = (o: Option, noStock = false) =>
+      setItems((list) => [...list, { key: Date.now() + list.length, name: o.name, price: o.price, barberId, noStock }]);
+    const addProduct = (p: Option) => {
+      const alreadyHere = items.filter((i) => i.name === p.name).length;
+      if (p.stock !== undefined && alreadyHere + 1 > Math.max(p.stock, 0)) setStockQuestion(p);
+      else add(p);
+    };
     return (
       <>
         {header}
@@ -167,7 +175,10 @@ export function NewComandaFlow({
                 <li key={i.key} className={styles.row}>
                   <span className={styles.rowMain}>
                     <span>{i.name}</span>
-                    <span className={styles.rowMeta}>{barberName(i.barberId)}</span>
+                    <span className={styles.rowMeta}>
+                      {barberName(i.barberId)}
+                      {i.noStock && " · sem estoque no sistema (confirmado)"}
+                    </span>
                   </span>
                   <span>
                     <strong>{formatBRL(i.price)}</strong>{" "}
@@ -195,10 +206,25 @@ export function NewComandaFlow({
             ))}
           </div>
         </Card>
+        {stockQuestion && (
+          <div className={styles.card} role="alertdialog" aria-label="Estoque insuficiente">
+            <p>
+              <strong>{stockQuestion.name}</strong>: o estoque no sistema é{" "}
+              <strong>{Math.max(stockQuestion.stock ?? 0, 0)}</strong>. Você tem o produto em mãos para entregar agora?
+            </p>
+            <div className={styles.buttonGrid}>
+              <button type="button" className={styles.button} onClick={() => { add(stockQuestion, true); setStockQuestion(null); }}>
+                Sim, tenho em mãos
+              </button>
+              <button type="button" className={styles.buttonSecondary} onClick={() => setStockQuestion(null)}>Não</button>
+            </div>
+            <Note>Se confirmar, a venda é registrada e o dono é avisado para conferir a contagem do estoque.</Note>
+          </div>
+        )}
         <Card title="Adicionar produto">
           <div className={styles.buttonGrid}>
             {products.map((p) => (
-              <button key={p.id} type="button" className={`${styles.buttonSecondary} ${styles.buttonStack}`} onClick={() => add(p)}>
+              <button key={p.id} type="button" className={`${styles.buttonSecondary} ${styles.buttonStack}`} onClick={() => addProduct(p)}>
                 {p.name}<small>{formatBRL(p.price)}</small>
               </button>
             ))}
@@ -215,7 +241,11 @@ export function NewComandaFlow({
         {items.length === 0 ? (
           <Link href="/comandas" className={`${styles.buttonSecondary} ${styles.buttonBlock}`}>Descartar comanda vazia</Link>
         ) : (
-          <Note>Para cancelar uma comanda com itens é preciso informar o motivo.</Note>
+          <Note>
+            {role === "owner"
+              ? "Para cancelar uma comanda com itens é preciso informar o motivo."
+              : "Só o dono cancela uma comanda com itens. Lançou algo errado? Remova o item com o ×."}
+          </Note>
         )}
       </>
     );

@@ -16,7 +16,7 @@ export default async function NewComandaPage() {
       // Decision B: phone numbers are never sent to a barber's browser.
       clients={clients.map(({ id, name, phone }) => ({ id, name, phone: role === "owner" ? phone : "" }))}
       services={services.filter((s) => s.favorite && s.active)}
-      products={products.filter((p) => p.use === "venda")}
+      products={products.filter((p) => p.use === "venda").map(({ id, name, price, stock }) => ({ id, name, price, stock }))}
     />
   );
 }

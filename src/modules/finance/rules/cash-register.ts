@@ -22,6 +22,10 @@ export type CashRegister = {
   /** counted − expected. Positive = extra money, negative = missing money. */
   difference: Cents | null;
   differenceReason: string | null;
+  /** Cash that stays in the drawer for the next day. Defaults to the counted cash. */
+  leftInDrawer: Cents | null;
+  /** Why the opening cash was different from what was left yesterday (null = same). */
+  openingReason: string | null;
 };
 
 export type CashMovementType = "opening" | "sale" | "sale_reversal" | "payment_correction" | "expense" | "withdrawal";
@@ -39,12 +43,24 @@ export type CashMovement = {
   at: Date;
 };
 
-/** R-CSH-01: only the owner opens the register; only one open register per barbershop. */
+/** What the opening cash should be: the cash that was left in the drawer at the last closing. */
+export function suggestedOpeningCash(previousClosed: CashRegister | null): Cents | null {
+  return previousClosed?.leftInDrawer ?? null;
+}
+
+/**
+ * R-CSH-01 (revised after owner feedback): the owner OR a barber opens the
+ * register; only one open register per barbershop.
+ * R-CSH-07: the opening cash must match what was left in the drawer at the
+ * last closing. A different value needs a reason and is audited — otherwise
+ * whoever opens could declare less cash and keep the difference.
+ */
 export function openRegister(
   ctx: TenantContext,
-  input: { id: string; openingCash: Cents; at: Date },
+  input: { id: string; openingCash: Cents; reason: string | null; at: Date },
   currentOpen: CashRegister | null,
-): Result<{ register: CashRegister; movement: CashMovement }> {
+  previousClosed: CashRegister | null,
+): Result<{ register: CashRegister; movement: CashMovement; audit: AuditEntry | null }> {
   const allowed = requirePermission(ctx, "cash.open");
   if (!allowed.ok) return allowed;
   if (currentOpen && currentOpen.barbershopId === ctx.barbershopId) {
@@ -52,6 +68,15 @@ export function openRegister(
   }
   if (!Number.isInteger(input.openingCash) || input.openingCash < 0) {
     return fail("INVALID_INPUT", "Troco inicial não pode ser negativo.");
+  }
+  if (previousClosed) {
+    const tenant = assertSameTenant(ctx, previousClosed);
+    if (!tenant.ok) return tenant;
+  }
+  const expected = suggestedOpeningCash(previousClosed);
+  const differs = expected !== null && input.openingCash !== expected;
+  if (differs && !isValidReason(input.reason)) {
+    return fail("INVALID_INPUT", "O troco inicial é diferente do que ficou na gaveta no último fechamento. Informe o motivo (mínimo 5 caracteres).");
   }
   const register: CashRegister = {
     id: input.id,
@@ -65,10 +90,24 @@ export function openRegister(
     countedCash: null,
     difference: null,
     differenceReason: null,
+    leftInDrawer: null,
+    openingReason: differs ? (input.reason ?? "").trim() : null,
   };
+  const audit: AuditEntry | null =
+    differs && expected !== null
+      ? {
+          barbershopId: ctx.barbershopId,
+          action: "cash.opened_with_difference",
+          userId: ctx.userId,
+          at: input.at,
+          entityId: register.id,
+          details: { expected, opening: input.openingCash, difference: input.openingCash - expected, reason: register.openingReason },
+        }
+      : null;
   return ok({
     register,
     movement: movement(register, ctx.userId, "opening", "cash", input.openingCash, "Abertura do caixa (troco)", null, input.at),
+    audit,
   });
 }
 
@@ -165,19 +204,26 @@ export function recordWithdrawal(
  *   value are recorded in the audit log so they are never silently ignored;
  * - the counted cash is compared with the expected cash;
  * - any difference needs a reason and is audited. The difference is recorded,
- *   never "fixed" by changing numbers.
+ *   never "fixed" by changing numbers;
+ * - `leftInDrawer` = the cash that stays for tomorrow (default: all of it).
+ *   The next opening is compared with it (R-CSH-07).
+ * Only the owner closes. (A future "cashier" role may also close.)
  */
 export function closeRegister(
   ctx: TenantContext,
   register: CashRegister | null,
   movements: readonly CashMovement[],
-  input: { countedCash: Cents; reason: string | null; pending: { count: number; total: Cents }; at: Date },
+  input: { countedCash: Cents; leftInDrawer?: Cents; reason: string | null; pending: { count: number; total: Cents }; at: Date },
 ): Result<{ register: CashRegister; audits: AuditEntry[] }> {
   const allowed = requirePermission(ctx, "cash.close");
   if (!allowed.ok) return allowed;
   const open = requireOpenRegister(ctx, register);
   if (!open.ok) return open;
   if (!Number.isInteger(input.countedCash) || input.countedCash < 0) return fail("INVALID_INPUT", "Valor contado inválido.");
+  const left = input.leftInDrawer ?? input.countedCash;
+  if (!Number.isInteger(left) || left < 0 || left > input.countedCash) {
+    return fail("INVALID_INPUT", "O troco que fica na gaveta não pode ser maior que o dinheiro contado.");
+  }
   const difference = input.countedCash - expectedCash(movements);
   if (difference !== 0 && !isValidReason(input.reason)) {
     return fail("INVALID_INPUT", "Informe o motivo da diferença (mínimo 5 caracteres).");
@@ -190,6 +236,7 @@ export function closeRegister(
     countedCash: input.countedCash,
     difference,
     differenceReason: difference === 0 ? null : (input.reason ?? "").trim(),
+    leftInDrawer: left,
   };
   const base = { barbershopId: ctx.barbershopId, userId: ctx.userId, at: input.at, entityId: closed.id };
   const audits: AuditEntry[] = [];

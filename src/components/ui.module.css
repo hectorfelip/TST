@@ -345,3 +345,15 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+.buttonSecondary:disabled,
+.buttonDanger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.bottomNav {
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  grid-template-columns: none;
+}

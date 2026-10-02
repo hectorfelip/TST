@@ -103,6 +103,8 @@ export type ClientView = {
   notes: string | null;
   visits: ClientVisit[];
   lastVisitAt: Date | null;
+  /** Times the client booked and did not show up (any role can see it). */
+  noShowCount: number;
 };
 
 /**
@@ -110,7 +112,12 @@ export type ClientView = {
  * sees only the name, the notes and HIS OWN visits — no phone number and no
  * visits with other barbers. The owner sees everything.
  */
-export function clientViewFor(ctx: TenantContext, client: Client, visits: readonly ClientVisit[]): Result<ClientView> {
+export function clientViewFor(
+  ctx: TenantContext,
+  client: Client,
+  visits: readonly ClientVisit[],
+  noShowCount: number,
+): Result<ClientView> {
   const tenant = assertSameTenant(ctx, client);
   if (!tenant.ok) return tenant;
   const visible = can(ctx.role, "client.view_full_history") ? [...visits] : visits.filter((v) => v.barberId === ctx.userId);
@@ -122,6 +129,7 @@ export function clientViewFor(ctx: TenantContext, client: Client, visits: readon
     notes: client.notes,
     visits: visible.sort((a, b) => b.at.getTime() - a.at.getTime()),
     lastVisitAt,
+    noShowCount,
   });
 }
 
@@ -141,7 +149,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * `awayAfterDays` days ago (a setting per barbershop). A client with no
  * visit yet is new, not away.
  */
-export function isAway(lastVisitAt: Date | null, now: Date, settings: BarbershopSettings): boolean {
+export function isAway(lastVisitAt: Date | null, now: Date, settings: Pick<BarbershopSettings, "awayAfterDays">): boolean {
   if (!lastVisitAt) return false;
   return (now.getTime() - lastVisitAt.getTime()) / DAY_MS > settings.awayAfterDays;
 }

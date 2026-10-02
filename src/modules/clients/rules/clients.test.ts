@@ -66,20 +66,22 @@ describe("LGPD (R-CLI-04)", () => {
 
 describe("what each role sees (R-CLI-05, decision B)", () => {
   it("owner sees phone and every visit", () => {
-    const view = unwrap(clientViewFor(owner, marcos, visits));
+    const view = unwrap(clientViewFor(owner, marcos, visits, 2));
     expect(view.phone).toBe("11977772222");
+    expect(view.noShowCount).toBe(2);
     expect(view.visits.map((v) => v.comandaId)).toEqual(["k2", "k1"]);
   });
 
   it("barber sees no phone and only his own visits, but the real last visit date", () => {
-    const view = unwrap(clientViewFor(rafael, marcos, visits));
+    const view = unwrap(clientViewFor(rafael, marcos, visits, 2));
     expect(view.phone).toBeNull();
+    expect(view.noShowCount).toBe(2);
     expect(view.visits.map((v) => v.barberId)).toEqual(["rafael"]);
     expect(view.lastVisitAt).toEqual(new Date("2026-09-15"));
   });
 
   it("another barbershop sees nothing", () => {
-    expectError(clientViewFor(intruder, marcos, visits), "WRONG_TENANT");
+    expectError(clientViewFor(intruder, marcos, visits, 0), "WRONG_TENANT");
   });
 
   it("search by name or phone digits (min 4)", () => {
@@ -98,9 +100,14 @@ describe("away clients (R-CLI-06)", () => {
     expect(isAway(new Date("2026-09-20"), NOW, { awayAfterDays: 7 })).toBe(true);
   });
 
-  it("setting must be between 7 and 365 days", () => {
-    expect(validateSettings({ awayAfterDays: 45 }).ok).toBe(true);
-    expectError(validateSettings({ awayAfterDays: 3 }), "INVALID_INPUT");
-    expectError(validateSettings({ awayAfterDays: 400 }), "INVALID_INPUT");
+  it("settings are validated (days, pending expiry, time zone)", () => {
+    expect(validateSettings({ ...DEFAULT_SETTINGS, awayAfterDays: 45 }).ok).toBe(true);
+    expectError(validateSettings({ ...DEFAULT_SETTINGS, awayAfterDays: 3 }), "INVALID_INPUT");
+    expectError(validateSettings({ ...DEFAULT_SETTINGS, awayAfterDays: 400 }), "INVALID_INPUT");
+    expect(DEFAULT_SETTINGS.pendingExpiryDays).toBe(5);
+    expect(validateSettings({ ...DEFAULT_SETTINGS, pendingExpiryDays: 10 }).ok).toBe(true);
+    expectError(validateSettings({ ...DEFAULT_SETTINGS, pendingExpiryDays: 0 }), "INVALID_INPUT");
+    expectError(validateSettings({ ...DEFAULT_SETTINGS, pendingExpiryDays: 31 }), "INVALID_INPUT");
+    expectError(validateSettings({ ...DEFAULT_SETTINGS, timeZone: "Mars/Olympus" }), "INVALID_INPUT");
   });
 });

@@ -71,6 +71,9 @@ Rules for you while he does the tasks:
 | 5 | "Quais clientes estão sumidos?" | Owner | Clients | Finds the "Sumido" badge |
 | 6 | "Quem faturou mais este mês?" | Owner | Reports | Finds Carlos |
 | 7 | "Agora finge que você é o Rafael. O que você consegue ver?" | Barber | Permissions | Understands he sees only his own things |
+| 8 | "Você tinha um cliente marcado às 10h e ele não apareceu. Registra isso." *(open the Agenda or the comanda #1030)* | Barber | No-show instead of cancel | Finds "Cliente não compareceu" without looking for "Cancelar" |
+| 9 | "Quem você atende amanhã?" | Barber | Agenda | Answers in ≤ 10 s |
+| 10 | "É fim de expediente. Fecha o caixa." | Owner | Closing with unpaid services | Understands every alert, decides each comanda, finishes in ≤ 3 min |
 
 For task 1, switch to barber mode **before** giving him the phone.
 
@@ -98,6 +101,10 @@ lies. "How did you do it last week?" gets facts.
 5. "Como funciona a comissão aqui? É igual pra todos os barbeiros e serviços?" *(commission is v2 — how urgent?)*
 6. "Os barbeiros usariam o próprio celular pra abrir comanda? Tem algum problema nisso?"
 7. "Quem dá desconto hoje? O barbeiro pode dar sozinho?" *(we decided: only the owner)*
+7a. "Como vocês marcam os horários hoje? Caderno, WhatsApp, cabeça?" *(is the light agenda enough?)*
+7b. "O que acontece hoje quando o cliente marcado não aparece? Já aconteceu de um barbeiro dizer que o cliente faltou e depois ter dúvida?" *(no-show)*
+7c. "Quem abre o caixa de manhã? E o que fica na gaveta de um dia pro outro?" *(barber opens; opening cash compared with yesterday)*
+7d. "Já vendeu produto que o sistema dizia que não tinha, mas estava na prateleira?" *(stock confirmation)*
 
 **Priority**
 8. "Se você só pudesse ter UMA tela dessas, qual seria?"

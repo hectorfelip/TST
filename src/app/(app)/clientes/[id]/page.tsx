@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { ButtonLink, Card, Money, Note, PageHeader, styles } from "@/components/ui";
-import { clients, comandas, comandaTotal, employeeName } from "@/prototype/mock-data";
+import { clients, comandas, comandaTotal, employeeName, noShowCountOf } from "@/prototype/mock-data";
 import { DEMO_BARBER_ID, getDemoRole } from "@/prototype/demo-role";
 
 export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
@@ -19,7 +19,10 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
       <PageHeader title={client.name} subtitle={isOwner ? client.phone : undefined} action={isOwner && <ButtonLink href={`/clientes/${client.id}`} variant="secondary">Editar</ButtonLink>} />
 
       <Card title="Resumo">
-        <p>{client.visits} visitas · última há {client.lastVisitDaysAgo} dias</p>
+        <p>
+          {client.visits} visitas · última há {client.lastVisitDaysAgo} dias
+          {noShowCountOf(client.id) > 0 && ` · ${noShowCountOf(client.id)} falta(s) em agendamentos`}
+        </p>
         {client.notes && <Note>{client.notes}</Note>}
       </Card>
 

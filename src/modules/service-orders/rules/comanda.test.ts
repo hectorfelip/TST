@@ -11,16 +11,20 @@ import {
   comandaTotal,
   discardComanda,
   isComandaOf,
+  markNoShow,
   openComanda,
   removeItem,
   setNote,
 } from "./comanda";
 import {
+  appointment,
   barba,
   barberRef,
+  clientRef,
   corte,
   diego,
   expectError,
+  HOUR,
   intruder,
   lamina,
   newComanda,
@@ -38,7 +42,7 @@ import {
 describe("open", () => {
   it("R-CMD-01: barber opens a walk-in comanda in his name", () => {
     const c = newComanda(rafael, 1028);
-    expect(c).toMatchObject({ number: 1028, clientId: null, openedBy: "rafael", status: "open", items: [], barbershopId: SHOP });
+    expect(c).toMatchObject({ number: 1028, clientId: null, openedBy: "rafael", status: "open", items: [], removedItems: [], appointment: null, barbershopId: SHOP });
   });
 
   it("rejects a client from another barbershop", () => {
@@ -47,6 +51,45 @@ describe("open", () => {
 
   it("rejects an anonymized client", () => {
     expectError(openComanda(rafael, { id: "x", number: 1, client: { id: "c", barbershopId: SHOP, anonymizedAt: NOW }, at: NOW }), "INVALID_INPUT");
+  });
+});
+
+describe("appointments (R-CMD-20)", () => {
+  const book = (ctx: typeof rafael, at: Date, barber = ctx, client: ReturnType<typeof clientRef> | null = clientRef()) =>
+    openComanda(ctx, { id: "x", number: 1, client, at: NOW, appointment: { at, barber: barberRef(barber) } });
+  const hours = (h: number) => new Date(NOW.getTime() + h * HOUR);
+
+  it("a barber books a registered client for himself", () => {
+    const c = appointment(rafael, 5, 3);
+    expect(c.appointment).toEqual({ at: hours(3), barberId: "rafael" });
+    expect(c.status).toBe("open");
+  });
+
+  it("the owner books for any barber, and that barber sees it as his own comanda", () => {
+    const c = appointment(owner, 6, 24, diego);
+    expect(c.openedBy).toBe("carlos");
+    expect(isComandaOf(c, "diego")).toBe(true);
+    expect(canView(diego, c)).toBe(true);
+    expect(canView(rafael, c)).toBe(false);
+  });
+
+  it("a barber cannot book in another barber's name", () => {
+    expectError(book(rafael, hours(3), diego), "FORBIDDEN");
+  });
+
+  it("needs a registered client (a walk-in has no name to wait for)", () => {
+    expectError(book(rafael, hours(3), rafael, null), "INVALID_INPUT");
+  });
+
+  it("cannot be in the past, nor more than 14 days ahead", () => {
+    expectError(book(rafael, hours(-1)), "INVALID_INPUT");
+    expect(book(rafael, hours(14 * 24)).ok).toBe(true);
+    expectError(book(rafael, hours(14 * 24 + 1)), "INVALID_INPUT");
+  });
+
+  it("rejects inactive barber and barber from another shop", () => {
+    expectError(openComanda(owner, { id: "x", number: 1, client: clientRef(), at: NOW, appointment: { at: hours(2), barber: barberRef(diego, false) } }), "INVALID_INPUT");
+    expectError(openComanda(owner, { id: "x", number: 1, client: clientRef(), at: NOW, appointment: { at: hours(2), barber: barberRef(intruder) } }), "WRONG_TENANT");
   });
 });
 
@@ -78,7 +121,7 @@ describe("items", () => {
   it("R-CMD-05: copies name and price at the moment it is added", () => {
     const c = withService(newComanda(), rafael, corte);
     const later = { ...corte, price: 9900, name: "Corte premium" };
-    expect(c.items[0]).toMatchObject({ name: "Corte", unitPrice: 4500, barberId: "rafael", addedBy: "rafael" });
+    expect(c.items[0]).toMatchObject({ name: "Corte", unitPrice: 4500, barberId: "rafael", addedBy: "rafael", soldWithoutStock: null });
     expect(later.price).not.toBe(c.items[0].unitPrice);
   });
 
@@ -102,19 +145,24 @@ describe("items", () => {
     expectError(add({ kind: "service", service: { ...corte, barbershopId: "shop-b" } }), "WRONG_TENANT");
   });
 
-  it("R-STK-04: a product with not enough stock can still be sold", () => {
-    const c = withProduct(newComanda(), rafael, { ...pomada, stock: 0 }, 3);
-    expect(c.items[0]).toMatchObject({ kind: "product", quantity: 3, unitPrice: 4500 });
-  });
-
-  it("R-CMD-08: barber removes only his own items", () => {
+  it("R-CMD-08/21: barber removes only his own items; removed items are kept in a trail", () => {
     let c = withService(newComanda(rafael), rafael);
     c = withService(c, owner, barba, diego);
     const diegoItem = c.items.find((i) => i.barberId === "diego")!;
     const rafaelItem = c.items.find((i) => i.barberId === "rafael")!;
-    expectError(removeItem(rafael, c, diegoItem.id), "FORBIDDEN");
-    expect(unwrap(removeItem(rafael, c, rafaelItem.id)).items).toHaveLength(1);
-    expectError(removeItem(rafael, c, "missing"), "INVALID_INPUT");
+    expectError(removeItem(rafael, c, diegoItem.id, NOW), "FORBIDDEN");
+    expectError(removeItem(rafael, c, "missing", NOW), "INVALID_INPUT");
+    const after = unwrap(removeItem(rafael, c, rafaelItem.id, NOW));
+    expect(after.items).toHaveLength(1);
+    expect(after.removedItems).toEqual([{ item: rafaelItem, by: "rafael", at: NOW }]);
+  });
+
+  it("R-CMD-21: add, remove everything, discard — the trail stays on the discarded comanda", () => {
+    const c = withService(newComanda(rafael), rafael);
+    const empty = unwrap(removeItem(rafael, c, c.items[0].id, NOW));
+    const discarded = unwrap(discardComanda(rafael, empty, NOW));
+    expect(discarded.status).toBe("discarded");
+    expect(discarded.removedItems).toHaveLength(1);
   });
 
   it("R-CMD-09: note is trimmed and limited", () => {
@@ -122,6 +170,41 @@ describe("items", () => {
     expect(unwrap(setNote(rafael, c, "  R$ 20 dinheiro + R$ 25 Pix ")).note).toBe("R$ 20 dinheiro + R$ 25 Pix");
     expect(unwrap(setNote(rafael, c, "   ")).note).toBeNull();
     expectError(setNote(rafael, c, "x".repeat(281)), "INVALID_INPUT");
+  });
+});
+
+describe("stock confirmation (R-STK-04, revised)", () => {
+  it("enough stock: no question asked", () => {
+    expect(withProduct(newComanda(), rafael, pomada, 2).items[0].soldWithoutStock).toBeNull();
+  });
+
+  it("not enough stock: the item is NOT added until the person confirms he has it in hand", () => {
+    const c = newComanda();
+    const add = (confirmInHand?: boolean, product = pomada, quantity = 3) =>
+      addItem(rafael, c, { itemId: "i", source: { kind: "product", product }, quantity, barber: barberRef(rafael), confirmInHand, at: NOW });
+    expectError(add(), "NEEDS_CONFIRMATION");
+    expectError(add(false), "NEEDS_CONFIRMATION");
+    const confirmed = unwrap(add(true));
+    expect(confirmed.items[0].soldWithoutStock).toEqual({ confirmedBy: "rafael", at: NOW });
+    expectError(add(undefined, { ...pomada, stock: 0 }, 1), "NEEDS_CONFIRMATION");
+    expectError(add(undefined, { ...pomada, stock: -3 }, 1), "NEEDS_CONFIRMATION");
+  });
+
+  it("counts what is already in the same comanda (2 in stock: 2 ok, the 3rd needs confirmation)", () => {
+    const c = withProduct(newComanda(), rafael, pomada, 2);
+    expectError(
+      addItem(rafael, c, { itemId: "i", source: { kind: "product", product: pomada }, quantity: 1, barber: barberRef(rafael), at: NOW }),
+      "NEEDS_CONFIRMATION",
+    );
+  });
+
+  it("closing a comanda with an unconfirmed-stock sale audits who confirmed it, and stock goes negative", () => {
+    const { register } = openCash();
+    const c = withProduct(newComanda(), rafael, pomada, 3, true);
+    const { stockMovements, audits } = unwrap(closeComanda(rafael, c, { method: "pix", receivedCash: null, at: NOW }, register));
+    expect(stockMovements[0]).toMatchObject({ type: "sale", quantity: -3 });
+    expect(pomada.stock + stockMovements[0].quantity).toBe(-1);
+    expect(audits).toEqual([expect.objectContaining({ action: "comanda.sold_without_stock", userId: "rafael", details: { number: 1, product: "Pomada", quantity: 3 } })]);
   });
 });
 
@@ -148,7 +231,7 @@ describe("discount (R-CMD-10/17)", () => {
   it("changing items removes the discount", () => {
     const c = unwrap(applyDiscount(owner, withService(newComanda(), rafael), 500, NOW)).comanda;
     expect(withService(c, rafael, barba).discount).toBeNull();
-    expect(unwrap(removeItem(rafael, c, c.items[0].id)).discount).toBeNull();
+    expect(unwrap(removeItem(rafael, c, c.items[0].id, NOW)).discount).toBeNull();
   });
 });
 
@@ -156,10 +239,11 @@ describe("close (R-CMD-11)", () => {
   it("walk-in + Corte + Pix: closes and creates one Pix sale movement", () => {
     const { register } = openCash();
     const c = withService(newComanda(rafael, 1028), rafael);
-    const { comanda, cashMovements, stockMovements } = unwrap(closeComanda(rafael, c, { method: "pix", receivedCash: null, at: NOW }, register));
+    const { comanda, cashMovements, stockMovements, audits } = unwrap(closeComanda(rafael, c, { method: "pix", receivedCash: null, at: NOW }, register));
     expect(comanda).toMatchObject({ status: "closed", closedBy: "rafael", payment: { method: "pix", total: 4500, registerId: register.id } });
     expect(cashMovements).toEqual([expect.objectContaining({ type: "sale", method: "pix", amount: 4500, comandaId: c.id, description: "Comanda #1028" })]);
     expect(stockMovements).toEqual([]);
+    expect(audits).toEqual([]);
   });
 
   it("products create stock movements (out)", () => {
@@ -194,22 +278,83 @@ describe("close (R-CMD-11)", () => {
     expect(result.comanda.payment?.total).toBe(0);
     expect(result.cashMovements).toEqual([]);
   });
+
+  it("a pending comanda that is paid is no longer pending", () => {
+    const { register } = openCash();
+    const pending = { ...withService(newComanda(), rafael), pendingSince: NOW };
+    expect(unwrap(closeComanda(rafael, pending, { method: "pix", receivedCash: null, at: NOW }, register)).comanda.pendingSince).toBeNull();
+  });
+});
+
+describe("no-show (R-CMD-19) — not a cancellation", () => {
+  const after = (c: ReturnType<typeof appointment>, hours: number) => new Date(c.appointment!.at.getTime() + hours * HOUR);
+
+  it("the barber marks it after the appointment time: paused, recorded, audited, NOT cancelled", () => {
+    const c = withService(appointment(rafael, 7, 3), rafael);
+    const { comanda, audit } = unwrap(markNoShow(rafael, c, after(c, 0.5)));
+    expect(comanda.status).toBe("no_show");
+    expect(comanda.status).not.toBe("cancelled");
+    expect(comanda.cancellation).toBeNull();
+    expect(comanda.noShow).toEqual({ by: "rafael", at: after(c, 0.5) });
+    expect(audit).toMatchObject({ action: "comanda.no_show", userId: "rafael", details: { number: 7, itemCount: 1, total: 4500 } });
+  });
+
+  it("not before the appointment time", () => {
+    const c = appointment(rafael, 7, 3);
+    expectError(markNoShow(rafael, c, NOW), "NOT_ALLOWED");
+    expect(markNoShow(rafael, c, c.appointment!.at).ok).toBe(true);
+  });
+
+  it("only comandas that are appointments", () => {
+    expectError(markNoShow(rafael, newComanda(), NOW), "INVALID_STATE");
+  });
+
+  it("only that barber or the owner; never another barber or another shop", () => {
+    const c = appointment(rafael, 7, 1);
+    const late = after(c, 1);
+    expectError(markNoShow(diego, c, late), "FORBIDDEN");
+    expectError(markNoShow(intruder, c, late), "WRONG_TENANT");
+    expect(markNoShow(owner, c, late).ok).toBe(true);
+  });
+
+  it("cannot be done twice or on a paid comanda; no money or stock is touched", () => {
+    const { register } = openCash();
+    const c = appointment(rafael, 7, 1);
+    const noShow = unwrap(markNoShow(rafael, c, after(c, 1))).comanda;
+    expectError(markNoShow(rafael, noShow, after(c, 2)), "INVALID_STATE");
+    const paid = unwrap(closeComanda(rafael, withService(appointment(rafael, 8, 1), rafael), { method: "pix", receivedCash: null, at: NOW }, register)).comanda;
+    expectError(markNoShow(rafael, paid, after(paid as never, 2)), "INVALID_STATE");
+  });
+
+  it("a no-show comanda cannot be paid or edited (it is paused)", () => {
+    const { register } = openCash();
+    const c = withService(appointment(rafael, 7, 1), rafael);
+    const noShow = unwrap(markNoShow(rafael, c, after(c, 1))).comanda;
+    expectError(closeComanda(rafael, noShow, { method: "pix", receivedCash: null, at: NOW }, register), "INVALID_STATE");
+    expectError(addItem(rafael, noShow, { itemId: "i", source: { kind: "service", service: corte }, quantity: 1, barber: barberRef(rafael), at: NOW }), "INVALID_STATE");
+  });
 });
 
 describe("discard and cancel (R-CMD-14/15)", () => {
-  it("empty comanda is discarded without reason; with items it must be cancelled", () => {
+  it("empty comanda is discarded without reason; with items it cannot be discarded", () => {
     expect(unwrap(discardComanda(rafael, newComanda(), NOW)).status).toBe("discarded");
     expectError(discardComanda(rafael, withService(newComanda(), rafael), NOW), "NOT_ALLOWED");
   });
 
-  it("open comanda with items: barber cancels his own with a reason", () => {
+  it("R-CMD-19: a BARBER cannot cancel an open comanda — not even his own", () => {
     const c = withService(newComanda(), rafael);
-    expectError(cancelComanda(rafael, c, { reason: "x", at: NOW }, null), "INVALID_INPUT");
-    const { comanda, cashMovements, audit } = unwrap(cancelComanda(rafael, c, { reason: "Cliente desistiu", at: NOW }, null));
-    expect(comanda).toMatchObject({ status: "cancelled", cancellation: { reason: "Cliente desistiu", by: "rafael" } });
+    expectError(cancelComanda(rafael, c, { reason: "Cliente desistiu", at: NOW }, null), "FORBIDDEN");
+    expectError(cancelComanda(diego, c, { reason: "Não é minha", at: NOW }, null), "FORBIDDEN");
+  });
+
+  it("the OWNER cancels an open comanda with a reason; audited", () => {
+    const c = withService(newComanda(), rafael);
+    expectError(cancelComanda(owner, c, { reason: "x", at: NOW }, null), "INVALID_INPUT");
+    const { comanda, cashMovements, audit } = unwrap(cancelComanda(owner, c, { reason: "Cliente desistiu", at: NOW }, null));
+    expect(comanda).toMatchObject({ status: "cancelled", cancellation: { reason: "Cliente desistiu", by: "carlos" } });
     expect(cashMovements).toEqual([]);
     expect(audit.action).toBe("comanda.cancel");
-    expectError(cancelComanda(diego, c, { reason: "Não é minha", at: NOW }, null), "FORBIDDEN");
+    expectError(cancelComanda(owner, newComanda(), { reason: "Vazia mesmo", at: NOW }, null), "NOT_ALLOWED");
   });
 
   it("closed comanda: only the owner, and money + products go back", () => {
@@ -244,7 +389,7 @@ describe("change payment method (R-CMD-16)", () => {
     expect(fixed.audit).toMatchObject({ action: "comanda.payment_method_changed", details: { from: "cash", to: "pix" } });
   });
 
-  it("is not possible after that register was closed", () => {
+  it("is not possible after that register was closed (a closed register is a sealed day)", () => {
     const first = openCash();
     const closed = unwrap(closeComanda(rafael, withService(newComanda(), rafael), { method: "cash", receivedCash: null, at: NOW }, first.register));
     const nextDay = openCash();

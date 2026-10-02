@@ -2,15 +2,19 @@ import Link from "next/link";
 import { Badge, ButtonLink, Card, Money, Note, PageHeader, Stat, styles } from "@/components/ui";
 import { formatBRL } from "@/shared/money";
 import {
+  agendaOf,
   barberRevenue,
   cashRegister,
   clientName,
   comandas,
   comandaTotal,
   isComandaOf,
+  openToday,
+  PENDING_EXPIRY_DAYS,
   products,
   type Comanda,
 } from "@/prototype/mock-data";
+import { AgendaList } from "@/prototype/agenda-list";
 import { DEMO_BARBER_ID, getDemoRole } from "@/prototype/demo-role";
 
 function OpenComandas({ list }: { list: Comanda[] }) {
@@ -22,7 +26,7 @@ function OpenComandas({ list }: { list: Comanda[] }) {
           <Link href={`/comandas/${c.id}`} className={styles.row}>
             <span className={styles.rowMain}>
               <span>#{c.number} · {clientName(c.clientId)}</span>
-              <span className={styles.rowMeta}>Aberta às {c.openedAt} · {c.items.length} itens</span>
+              <span className={styles.rowMeta}>Aberta · {c.openedAt} · {c.items.length} itens</span>
             </span>
             <strong><Money cents={comandaTotal(c)} /></strong>
           </Link>
@@ -38,7 +42,7 @@ const today = "Hoje, terça-feira 29/09";
 function BarberDashboard() {
   const mine = comandas.filter((c) => isComandaOf(c, DEMO_BARBER_ID));
   const closed = mine.filter((c) => c.status === "fechada");
-  const open = mine.filter((c) => c.status === "aberta");
+  const open = mine.filter((c) => c.status === "aberta" && c.appointment?.day !== "amanha");
   const revenue = closed.reduce((sum, c) => sum + barberRevenue(c, DEMO_BARBER_ID), 0);
 
   return (
@@ -49,6 +53,12 @@ function BarberDashboard() {
         <Stat label="Atendimentos fechados" value={String(closed.length)} />
       </div>
       <Note>Este valor não é a sua comissão. O cálculo da comissão chega numa próxima versão.</Note>
+      <Card title="Clientes marcados hoje">
+        <AgendaList items={agendaOf("hoje", DEMO_BARBER_ID)} showBarber={false} empty="Ninguém marcado para hoje." />
+      </Card>
+      <Card title="Clientes marcados amanhã">
+        <AgendaList items={agendaOf("amanha", DEMO_BARBER_ID)} showBarber={false} empty="Ninguém marcado para amanhã." />
+      </Card>
       <Card title="Minhas comandas abertas">
         <OpenComandas list={open} />
       </Card>
@@ -58,7 +68,8 @@ function BarberDashboard() {
 
 function OwnerDashboard() {
   const closed = comandas.filter((c) => c.status === "fechada");
-  const open = comandas.filter((c) => c.status === "aberta");
+  const open = openToday();
+  const pending = comandas.filter((c) => c.pendingDaysAgo !== undefined);
   const revenue = closed.reduce((sum, c) => sum + comandaTotal(c), 0);
   const lowStock = products.filter((p) => p.stock < p.minStock);
 
@@ -79,6 +90,29 @@ function OwnerDashboard() {
         </p>
         <ButtonLink href="/caixa" variant="secondary">Ver caixa</ButtonLink>
       </Card>
+
+      <Card title={`Agenda de hoje (${agendaOf("hoje", null).length})`}>
+        <AgendaList items={agendaOf("hoje", null)} showBarber empty="Ninguém marcado para hoje." />
+        <ButtonLink href="/agenda" variant="secondary">Ver agenda completa</ButtonLink>
+      </Card>
+
+      {pending.length > 0 && (
+        <Card title="Pendentes sem pagamento">
+          <ul className={styles.list}>
+            {pending.map((c) => (
+              <li key={c.id}>
+                <Link href={`/comandas/${c.id}`} className={styles.row}>
+                  <span className={styles.rowMain}>
+                    <span>#{c.number} · {clientName(c.clientId)}</span>
+                    <span className={styles.rowMeta}>Vence em {Math.max(0, PENDING_EXPIRY_DAYS - (c.pendingDaysAgo ?? 0))} dias, depois é cancelada</span>
+                  </span>
+                  <strong><Money cents={comandaTotal(c)} /></strong>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card title="Comandas abertas">
         <OpenComandas list={open} />

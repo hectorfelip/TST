@@ -3,6 +3,7 @@ import { Card, PageHeader, styles } from "@/components/ui";
 import { getDemoRole } from "@/prototype/demo-role";
 
 const ownerLinks = [
+  { href: "/caixa/abrir", label: "Abrir caixa" },
   { href: "/clientes", label: "Clientes" },
   { href: "/servicos", label: "Serviços" },
   { href: "/estoque", label: "Estoque" },
@@ -12,6 +13,7 @@ const ownerLinks = [
 ];
 
 const barberLinks = [
+  { href: "/caixa/abrir", label: "Abrir caixa" },
   { href: "/clientes", label: "Clientes" },
   { href: "/login", label: "Sair" },
 ];

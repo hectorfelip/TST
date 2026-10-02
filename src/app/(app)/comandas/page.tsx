@@ -1,6 +1,16 @@
 import Link from "next/link";
 import { Badge, ButtonLink, Card, Money, PageHeader, styles } from "@/components/ui";
-import { clientName, comandas, comandaTotal, employeeName, isComandaOf, paymentMethodLabel, type Comanda } from "@/prototype/mock-data";
+import {
+  appointmentLabel,
+  clientName,
+  comandas,
+  comandaTotal,
+  employeeName,
+  isComandaOf,
+  PENDING_EXPIRY_DAYS,
+  paymentMethodLabel,
+  type Comanda,
+} from "@/prototype/mock-data";
 import { DEMO_BARBER_ID, getDemoRole } from "@/prototype/demo-role";
 
 function barbersOf(comanda: Comanda): string {
@@ -15,12 +25,20 @@ function ComandaRow({ comanda }: { comanda: Comanda }) {
         <span className={styles.rowMain}>
           <span>#{comanda.number} · {clientName(comanda.clientId)}</span>
           <span className={styles.rowMeta}>
-            {comanda.openedAt} · {barbersOf(comanda)}
+            {comanda.appointment ? `Agendado ${appointmentLabel(comanda)}` : comanda.openedAt} · {barbersOf(comanda)}
             {comanda.payment && ` · ${paymentMethodLabel[comanda.payment]}`}
           </span>
         </span>
         <span>
-          {comanda.status === "cancelada" ? <Badge tone="warning">Cancelada</Badge> : <strong><Money cents={comandaTotal(comanda)} /></strong>}
+          {comanda.status === "cancelada" ? (
+            <Badge tone="warning">Cancelada</Badge>
+          ) : comanda.status === "nao_compareceu" ? (
+            <Badge tone="warning">Não compareceu</Badge>
+          ) : comanda.pendingDaysAgo !== undefined ? (
+            <Badge tone="warning">Pendente · {Math.max(0, PENDING_EXPIRY_DAYS - comanda.pendingDaysAgo)}d</Badge>
+          ) : (
+            <strong><Money cents={comandaTotal(comanda)} /></strong>
+          )}
         </span>
       </Link>
     </li>
@@ -30,7 +48,8 @@ function ComandaRow({ comanda }: { comanda: Comanda }) {
 export default async function ComandasPage() {
   const role = await getDemoRole();
   const visible = role === "owner" ? comandas : comandas.filter((c) => isComandaOf(c, DEMO_BARBER_ID));
-  const open = visible.filter((c) => c.status === "aberta");
+  // Appointments for tomorrow live in the Agenda, not in today's open list.
+  const open = visible.filter((c) => c.status === "aberta" && c.appointment?.day !== "amanha");
   const done = visible.filter((c) => c.status !== "aberta");
 
   return (
@@ -39,7 +58,7 @@ export default async function ComandasPage() {
       <Card title={`Abertas (${open.length})`}>
         <ul className={styles.list}>{open.map((c) => <ComandaRow key={c.id} comanda={c} />)}</ul>
       </Card>
-      <Card title={`Fechadas e canceladas (${done.length})`}>
+      <Card title={`Fechadas, canceladas e faltas (${done.length})`}>
         <ul className={styles.list}>{done.map((c) => <ComandaRow key={c.id} comanda={c} />)}</ul>
       </Card>
     </>

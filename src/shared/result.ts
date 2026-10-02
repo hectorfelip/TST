@@ -10,7 +10,9 @@ export type ErrorCode =
   | "WRONG_TENANT"
   | "INVALID_INPUT"
   | "INVALID_STATE"
-  | "NOT_ALLOWED";
+  | "NOT_ALLOWED"
+  /** The action is possible, but the person must confirm first (e.g. sell without stock). */
+  | "NEEDS_CONFIRMATION";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: DomainError };
 

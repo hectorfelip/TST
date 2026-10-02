@@ -59,10 +59,18 @@ export type Comanda = {
   clientId: string | null; // null = walk-in client ("cliente avulso")
   openedAt: string;
   openedBy: string; // employee id
-  status: "aberta" | "fechada" | "cancelada";
+  status: "aberta" | "fechada" | "cancelada" | "nao_compareceu";
   items: ComandaItem[];
   payment?: PaymentMethod;
+  /** Set when this comanda is an appointment ("agendamento"). */
+  appointment?: { day: "hoje" | "amanha"; time: string; barberId: string };
+  /** Days since the owner chose "keep pending" at closing. Expires after PENDING_EXPIRY_DAYS. */
+  pendingDaysAgo?: number;
 };
+
+export const PENDING_EXPIRY_DAYS = 5;
+/** The prototype's "now" for the day screens (Tuesday 29/09). */
+export const NOW_LABEL = "10:35";
 
 export const comandas: Comanda[] = [
   {
@@ -76,7 +84,39 @@ export const comandas: Comanda[] = [
     id: "1026", number: 1026, openedBy: "e3", clientId: null, openedAt: "10:15", status: "aberta",
     items: [{ kind: "servico", name: "Corte", price: 4500, barberId: "e3" }],
   },
-  { id: "1025", number: 1025, openedBy: "e2", clientId: "c1", openedAt: "10:05", status: "aberta", items: [] },
+  {
+    id: "1025", number: 1025, openedBy: "e2", clientId: "c1", openedAt: "Ontem 18:10", status: "aberta", items: [],
+    appointment: { day: "hoje", time: "11:00", barberId: "e2" },
+  },
+  {
+    id: "1030", number: 1030, openedBy: "e1", clientId: "c2", openedAt: "Ontem 17:20", status: "aberta",
+    items: [{ kind: "servico", name: "Corte", price: 4500, barberId: "e2" }],
+    appointment: { day: "hoje", time: "10:00", barberId: "e2" },
+  },
+  {
+    id: "1032", number: 1032, openedBy: "e1", clientId: "c4", openedAt: "Ontem 17:45", status: "aberta",
+    items: [{ kind: "servico", name: "Corte", price: 4500, barberId: "e3" }],
+    appointment: { day: "hoje", time: "15:00", barberId: "e3" },
+  },
+  {
+    id: "1033", number: 1033, openedBy: "e2", clientId: "c3", openedAt: "Hoje 09:50", status: "aberta",
+    items: [{ kind: "servico", name: "Corte + Barba", price: 7000, barberId: "e2" }],
+    appointment: { day: "amanha", time: "10:00", barberId: "e2" },
+  },
+  {
+    id: "1034", number: 1034, openedBy: "e1", clientId: "c2", openedAt: "Hoje 10:10", status: "aberta", items: [],
+    appointment: { day: "amanha", time: "11:30", barberId: "e3" },
+  },
+  { id: "1035", number: 1035, openedBy: "e2", clientId: null, openedAt: "10:30", status: "aberta", items: [] },
+  {
+    id: "1020", number: 1020, openedBy: "e3", clientId: "c1", openedAt: "Ontem 17:00", status: "nao_compareceu",
+    items: [{ kind: "servico", name: "Barba", price: 3500, barberId: "e3" }],
+    appointment: { day: "hoje", time: "09:30", barberId: "e3" },
+  },
+  {
+    id: "1019", number: 1019, openedBy: "e3", clientId: "c2", openedAt: "Ontem 16:40", status: "aberta", pendingDaysAgo: 3,
+    items: [{ kind: "servico", name: "Corte", price: 4500, barberId: "e3" }],
+  },
   {
     id: "1024", number: 1024, openedBy: "e1", clientId: "c2", openedAt: "09:40", status: "fechada", payment: "pix",
     items: [
@@ -159,7 +199,89 @@ export const monthReport = {
 
 /** Barber sees comandas he opened or where he did at least one item. */
 export function isComandaOf(comanda: Comanda, employeeId: string): boolean {
-  return comanda.openedBy === employeeId || comanda.items.some((i) => i.barberId === employeeId);
+  return (
+    comanda.openedBy === employeeId ||
+    comanda.appointment?.barberId === employeeId ||
+    comanda.items.some((i) => i.barberId === employeeId)
+  );
+}
+
+export function appointmentLabel(comanda: Comanda): string {
+  if (!comanda.appointment) return "";
+  return `${comanda.appointment.day === "hoje" ? "Hoje" : "Amanhã"} ${comanda.appointment.time}`;
+}
+
+/** Has the appointment time already passed (today, relative to NOW_LABEL)? Only then "não compareceu" is allowed. */
+export function appointmentTimePassed(comanda: Comanda): boolean {
+  const a = comanda.appointment;
+  return !!a && a.day === "hoje" && a.time <= NOW_LABEL;
+}
+
+/** Appointments (open) for a day, earliest first. */
+export function agendaOf(day: "hoje" | "amanha", barberId: string | null): Comanda[] {
+  return comandas
+    .filter((c) => c.status === "aberta" && c.appointment?.day === day)
+    .filter((c) => barberId === null || isComandaOf(c, barberId))
+    .sort((a, b) => a.appointment!.time.localeCompare(b.appointment!.time));
+}
+
+/** Open comandas that belong to the day (appointments of tomorrow are not "open today"). */
+export function openToday(): Comanda[] {
+  return comandas.filter((c) => c.status === "aberta" && c.appointment?.day !== "amanha");
+}
+
+export function noShowCountOf(clientId: string): number {
+  return comandas.filter((c) => c.status === "nao_compareceu" && c.clientId === clientId).length;
+}
+
+export type DayDecision = "no_show" | "keep_pending" | "discard" | "reviewed";
+
+export type DayEntry = {
+  id: string;
+  number: number;
+  kind: "unpaid" | "empty" | "no_show_with_items";
+  client: string;
+  barber: string;
+  appointment: string | null;
+  items: string[];
+  total: Cents;
+  options: DayDecision[];
+  expiresInDays: number | null;
+};
+
+/**
+ * The list the owner must go through when closing the register (mirrors
+ * planDayClose in the rules). The prototype treats the closing as the end of
+ * the day: every appointment of today is already due.
+ */
+export function dayCloseEntries(): DayEntry[] {
+  const entries: DayEntry[] = [];
+  for (const c of comandas) {
+    const base = {
+      id: c.id,
+      number: c.number,
+      client: clientName(c.clientId),
+      barber: employeeName(c.appointment?.barberId ?? c.items[0]?.barberId ?? c.openedBy),
+      appointment: c.appointment ? appointmentLabel(c) : null,
+      items: c.items.map((i) => i.name),
+      total: comandaTotal(c),
+    };
+    if (c.status === "aberta" && c.appointment?.day !== "amanha") {
+      if (c.items.length > 0) {
+        entries.push({
+          ...base,
+          kind: "unpaid",
+          options: c.appointment ? ["no_show", "keep_pending"] : ["keep_pending"],
+          expiresInDays: c.pendingDaysAgo === undefined ? null : Math.max(0, PENDING_EXPIRY_DAYS - c.pendingDaysAgo),
+        });
+      } else {
+        entries.push({ ...base, kind: "empty", options: c.appointment ? ["no_show"] : ["discard"], expiresInDays: null });
+      }
+    } else if (c.status === "nao_compareceu" && c.items.length > 0) {
+      entries.push({ ...base, kind: "no_show_with_items", options: ["reviewed"], expiresInDays: null });
+    }
+  }
+  return entries.sort((a, b) => a.number - b.number);
 }
 
 /** Revenue of one barber = sum of the items he did (not the whole comanda). */

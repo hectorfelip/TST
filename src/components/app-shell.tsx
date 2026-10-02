@@ -10,12 +10,14 @@ const navByRole: Record<Role, { mobile: NavItem[]; desktop: NavItem[] }> = {
   owner: {
     mobile: [
       { href: "/", label: "Painel" },
+      { href: "/agenda", label: "Agenda" },
       { href: "/comandas", label: "Comandas" },
       { href: "/caixa", label: "Caixa" },
       { href: "/mais", label: "Mais" },
     ],
     desktop: [
       { href: "/", label: "Painel" },
+      { href: "/agenda", label: "Agenda" },
       { href: "/comandas", label: "Comandas" },
       { href: "/caixa", label: "Caixa" },
       { href: "/clientes", label: "Clientes" },
@@ -28,14 +30,16 @@ const navByRole: Record<Role, { mobile: NavItem[]; desktop: NavItem[] }> = {
   barber: {
     mobile: [
       { href: "/", label: "Meu dia" },
+      { href: "/agenda", label: "Agenda" },
       { href: "/comandas", label: "Comandas" },
-      { href: "/clientes", label: "Clientes" },
       { href: "/mais", label: "Mais" },
     ],
     desktop: [
       { href: "/", label: "Meu dia" },
+      { href: "/agenda", label: "Agenda" },
       { href: "/comandas", label: "Comandas" },
       { href: "/clientes", label: "Clientes" },
+      { href: "/caixa/abrir", label: "Abrir caixa" },
     ],
   },
 };

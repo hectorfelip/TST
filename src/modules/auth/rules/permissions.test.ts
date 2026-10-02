@@ -6,9 +6,9 @@ const ownerOnly: Action[] = [
   "comanda.view_any",
   "comanda.assign_other_barber",
   "comanda.discount",
+  "comanda.cancel_open",
   "comanda.cancel_closed",
   "comanda.change_payment_method",
-  "cash.open",
   "cash.close",
   "cash.expense",
   "cash.withdrawal",
@@ -24,17 +24,27 @@ const ownerOnly: Action[] = [
   "settings.manage",
 ];
 
+const barberAllowed: Action[] = ["comanda.open", "comanda.edit_own", "comanda.mark_no_show", "cash.open", "client.create"];
+
 describe("permissions", () => {
   it("owner can do everything", () => {
-    for (const action of [...ownerOnly, "comanda.open", "comanda.edit_own", "client.create"] as Action[]) {
+    for (const action of [...ownerOnly, ...barberAllowed] as Action[]) {
       expect(can("owner", action)).toBe(true);
     }
   });
 
-  it("barber can open/edit own comandas and create clients", () => {
-    expect(can("barber", "comanda.open")).toBe(true);
-    expect(can("barber", "comanda.edit_own")).toBe(true);
-    expect(can("barber", "client.create")).toBe(true);
+  it.each(barberAllowed)("barber can %s", (action) => {
+    expect(can("barber", action)).toBe(true);
+  });
+
+  it("R-CSH-01: a barber can OPEN the register, but only the owner can CLOSE it", () => {
+    expect(can("barber", "cash.open")).toBe(true);
+    expect(can("barber", "cash.close")).toBe(false);
+  });
+
+  it("R-CMD-19: a barber cannot cancel an open comanda (he marks a no-show instead)", () => {
+    expect(can("barber", "comanda.cancel_open")).toBe(false);
+    expect(can("barber", "comanda.mark_no_show")).toBe(true);
   });
 
   it.each(ownerOnly)("barber cannot %s", (action) => {

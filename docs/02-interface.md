@@ -70,7 +70,9 @@ Navigation: **bottom tab bar** on the phone (Painel, Comandas, Caixa, Mais),
 | Comanda (detail) | `/comandas/[id]` | ✅ | ⚠️ own only | — |
 | Fechar comanda | `/comandas/[id]/fechar` | ✅ with discount | ⚠️ own only, no discount | Money in |
 | Caixa (cash register) | `/caixa` | ✅ | ❌ | Money in and out |
-| Fechar caixa (interactive) | `/caixa/fechar` | ✅ | ❌ | Does the money match? |
+| Fechar caixa (interactive) | `/caixa/fechar` | ✅ | ❌ | Does the money match? Which services were not paid? |
+| Abrir caixa *(step 3)* | `/caixa/abrir` | ✅ | ✅ | — |
+| Agenda *(step 3)* | `/agenda`, `/agenda/nova` | ✅ all barbers | ⚠️ own clients | Who is coming today and tomorrow? |
 | Clientes | `/clientes`, `/clientes/[id]` | ✅ | ⚠️ search, view, create (no edit, no delete) | Clients who stopped coming ("Sumido" badge) |
 | Serviços | `/servicos` | ✅ | ❌ | — |
 | Estoque | `/estoque` | ✅ | ❌ | Products running out |
@@ -293,6 +295,17 @@ This is a real privacy question (LGPD: collect and show only what is needed).
 **My recommendation was B.** The client list is one of the shop's most valuable
 assets; owners worry about barbers taking it to a competitor. Confirm with the
 owner during his test.
+
+### 12.5 Changes made in step 3 (screens)
+
+Decided in [03-rules.md](03-rules.md), section 8:
+
+- **Agenda** (new): "Clientes marcados hoje / amanhã" on the barber's "Meu dia", an **Agenda** tab and a booking form.
+- **Comanda**: "Cliente não compareceu" (with confirmation, only after the appointment time) replaces "Cancelar" for barbers; the owner keeps "Cancelar" (reason + confirmation). Pending comandas show "vence em N dias".
+- **Fechar caixa**: lists every unpaid service with its value; each comanda needs a decision with a confirmation; final summary before closing.
+- **Abrir caixa** (new): the barber or the owner; the amount is compared with what was left yesterday.
+- **Nova comanda**: when stock in the system is too low, it asks "do you have it in hand?".
+- Bottom menu: **Agenda** added (owner: 5 tabs; barber: Meu dia, Agenda, Comandas, Mais).
 
 ## Glossary
 

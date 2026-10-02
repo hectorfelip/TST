@@ -3,13 +3,19 @@
  *
  * State machine:
  *
- *   open ──close──► closed ──cancel (owner)──► cancelled
- *     │  └─cancel (with items)──────────────► cancelled
- *     └──discard (no items)──► discarded
+ *   open ──close (payment)──────────────► closed ──cancel (owner)──► cancelled
+ *    │ ├─no-show (appointment, after its time) ─► no_show   NOT a cancellation
+ *    │ ├─cancel (OWNER only, with a reason)────► cancelled
+ *    │ ├─discard (no items)───────────────────► discarded
+ *    │ └─pending for N days (system)──────────► cancelled   (see day-close.ts)
  *
  * Closing is the ONE action that updates money (cash movements), stock
  * (stock movements) and barber revenue. The rules only RETURN these effects;
  * the data layer (step 4) saves everything in one transaction.
+ *
+ * A comanda can also be an APPOINTMENT: opened in advance for a registered
+ * client, with a time and a barber. This is the "light agenda" the barbers
+ * need to see who is coming today and tomorrow.
  */
 import { can, requirePermission } from "@/modules/auth/rules/permissions";
 import {
@@ -27,9 +33,10 @@ import type { Cents } from "@/shared/money";
 import { fail, ok, type Result } from "@/shared/result";
 import { assertSameTenant, type TenantContext } from "@/shared/tenant";
 import { isValidReason } from "@/shared/text";
+import { DAY_MS } from "@/shared/time";
 import { subtotal } from "./totals";
 
-export type ComandaStatus = "open" | "closed" | "cancelled" | "discarded";
+export type ComandaStatus = "open" | "closed" | "cancelled" | "discarded" | "no_show";
 
 export type ComandaItem = {
   id: string;
@@ -44,7 +51,14 @@ export type ComandaItem = {
   barberId: string;
   addedBy: string;
   addedAt: Date;
+  /** Set when the stock count was too low and the person confirmed having the product in hand (R-STK-04). */
+  soldWithoutStock: { confirmedBy: string; at: Date } | null;
 };
+
+/** Removed items are kept, never lost: removing an item must not erase the trail. */
+export type RemovedItem = { item: ComandaItem; by: string; at: Date };
+
+export type Appointment = { at: Date; barberId: string };
 
 export type Comanda = {
   id: string;
@@ -57,6 +71,7 @@ export type Comanda = {
   openedAt: Date;
   status: ComandaStatus;
   items: ComandaItem[];
+  removedItems: RemovedItem[];
   discount: { amount: Cents; givenBy: string; at: Date } | null;
   payment: {
     method: PaymentMethod;
@@ -66,8 +81,15 @@ export type Comanda = {
     registerId: string;
   } | null;
   note: string | null;
+  /** Set when this comanda is an appointment (needs a registered client). */
+  appointment: Appointment | null;
+  /** When the owner chose "keep pending" at closing. Starts the expiry countdown. */
+  pendingSince: Date | null;
+  /** The client did not show up. Recorded for the owner; it is NOT a cancellation. */
+  noShow: { by: string; at: Date } | null;
   closedAt: Date | null;
   closedBy: string | null;
+  /** `by` is "system" when it expired by itself. */
   cancellation: { reason: string; by: string; at: Date } | null;
 };
 
@@ -77,6 +99,7 @@ export type BarberRef = { id: string; barbershopId: string; active: boolean };
 
 export const MAX_ITEM_QUANTITY = 20;
 export const MAX_NOTE_LENGTH = 280;
+export const MAX_APPOINTMENT_DAYS = 14;
 
 export function comandaSubtotal(comanda: Pick<Comanda, "items">): Cents {
   return subtotal(comanda.items);
@@ -86,9 +109,16 @@ export function comandaTotal(comanda: Pick<Comanda, "items" | "discount">): Cent
   return comandaSubtotal(comanda) - (comanda.discount?.amount ?? 0);
 }
 
-/** R-CMD-02: "own comanda" = opened by the user or with at least one item done by him. */
-export function isComandaOf(comanda: Pick<Comanda, "openedBy" | "items">, userId: string): boolean {
-  return comanda.openedBy === userId || comanda.items.some((item) => item.barberId === userId);
+/**
+ * R-CMD-02: "own comanda" = opened by the user, or with at least one item
+ * done by him, or an appointment booked with him.
+ */
+export function isComandaOf(comanda: Pick<Comanda, "openedBy" | "items" | "appointment">, userId: string): boolean {
+  return (
+    comanda.openedBy === userId ||
+    comanda.appointment?.barberId === userId ||
+    comanda.items.some((item) => item.barberId === userId)
+  );
 }
 
 /** R-CMD-03: who can see a comanda. */
@@ -110,10 +140,21 @@ function audit(ctx: TenantContext, action: AuditEntry["action"], comanda: Comand
   return { barbershopId: ctx.barbershopId, action, userId: ctx.userId, at, entityId: comanda.id, details: { number: comanda.number, ...details } };
 }
 
-/** R-CMD-01: anyone logged in can open a comanda. The client is optional. */
+/**
+ * R-CMD-01: anyone logged in can open a comanda. The client is optional.
+ * R-CMD-20: an APPOINTMENT needs a registered client, a time that has not
+ * passed and is at most 14 days ahead, and an active barber. A barber can
+ * only book in his own name; the owner can book for any barber.
+ */
 export function openComanda(
   ctx: TenantContext,
-  input: { id: string; number: number; client: ClientRef | null; at: Date },
+  input: {
+    id: string;
+    number: number;
+    client: ClientRef | null;
+    at: Date;
+    appointment?: { at: Date; barber: BarberRef } | null;
+  },
 ): Result<Comanda> {
   const allowed = requirePermission(ctx, "comanda.open");
   if (!allowed.ok) return allowed;
@@ -123,6 +164,24 @@ export function openComanda(
     if (input.client.anonymizedAt) return fail("INVALID_INPUT", "Este cliente foi removido.");
   }
   if (!Number.isInteger(input.number) || input.number <= 0) return fail("INVALID_INPUT", "Número de comanda inválido.");
+
+  let appointment: Appointment | null = null;
+  if (input.appointment) {
+    const { at, barber } = input.appointment;
+    if (!input.client) return fail("INVALID_INPUT", "Agendamento precisa de um cliente cadastrado.");
+    if (at.getTime() < input.at.getTime()) return fail("INVALID_INPUT", "O horário do agendamento já passou.");
+    if (at.getTime() - input.at.getTime() > MAX_APPOINTMENT_DAYS * DAY_MS) {
+      return fail("INVALID_INPUT", `Só é possível agendar até ${MAX_APPOINTMENT_DAYS} dias à frente.`);
+    }
+    const tenant = assertSameTenant(ctx, barber);
+    if (!tenant.ok) return tenant;
+    if (!barber.active) return fail("INVALID_INPUT", "Este barbeiro está inativo.");
+    if (barber.id !== ctx.userId && !can(ctx.role, "comanda.assign_other_barber")) {
+      return fail("FORBIDDEN", "Você só pode agendar no seu nome.");
+    }
+    appointment = { at, barberId: barber.id };
+  }
+
   return ok({
     id: input.id,
     barbershopId: ctx.barbershopId,
@@ -132,9 +191,13 @@ export function openComanda(
     openedAt: input.at,
     status: "open",
     items: [],
+    removedItems: [],
     discount: null,
     payment: null,
     note: null,
+    appointment,
+    pendingSince: null,
+    noShow: null,
     closedAt: null,
     closedBy: null,
     cancellation: null,
@@ -148,14 +211,16 @@ type ItemSource = { kind: "service"; service: Service } | { kind: "product"; pro
  * R-CMD-05: the price is copied from the catalog now; later price changes do not affect it.
  * R-CMD-06: a barber can only put items in his own name; the owner can choose any active barber.
  * R-CMD-07: only active services and active products for sale can be added.
- * R-STK-04: the stock count never blocks a sale.
- * R-CMD-17: changing the items removes the discount (the owner must give it
- * again for the new items, so a discount is never carried to other items).
+ * R-CMD-17: changing the items removes the discount.
+ * R-STK-04 (revised after owner feedback): if the system stock is lower than
+ * the quantity, the person must CONFIRM that he has the product in hand to
+ * deliver now (`confirmInHand`). Without it the item is not added. The
+ * confirmation is saved on the item and audited when the comanda is closed.
  */
 export function addItem(
   ctx: TenantContext,
   comanda: Comanda,
-  input: { itemId: string; source: ItemSource; quantity: number; barber: BarberRef; at: Date },
+  input: { itemId: string; source: ItemSource; quantity: number; barber: BarberRef; confirmInHand?: boolean; at: Date },
 ): Result<Comanda> {
   const editable = requireEditable(ctx, comanda);
   if (!editable.ok) return editable;
@@ -170,24 +235,36 @@ export function addItem(
     return fail("FORBIDDEN", "Você só pode lançar itens no seu nome.");
   }
 
-  let item: Omit<ComandaItem, "id" | "quantity" | "barberId" | "addedBy" | "addedAt">;
+  let line: Pick<ComandaItem, "kind" | "refId" | "name" | "unitPrice" | "soldWithoutStock">;
   if (input.source.kind === "service") {
     const service = input.source.service;
     const tenant = assertSameTenant(ctx, service);
     if (!tenant.ok) return tenant;
     if (!service.active) return fail("INVALID_INPUT", "Este serviço está inativo.");
-    item = { kind: "service", refId: service.id, name: service.name, unitPrice: service.price };
+    line = { kind: "service", refId: service.id, name: service.name, unitPrice: service.price, soldWithoutStock: null };
   } else {
     const product = input.source.product;
     const tenant = assertSameTenant(ctx, product);
     if (!tenant.ok) return tenant;
     if (!product.active) return fail("INVALID_INPUT", "Este produto está inativo.");
     if (product.use !== "sale" || product.salePrice === null) return fail("INVALID_INPUT", "Este produto é de uso interno e não pode ser vendido.");
-    item = { kind: "product", refId: product.id, name: product.name, unitPrice: product.salePrice };
+
+    const alreadyHere = comanda.items
+      .filter((i) => i.kind === "product" && i.refId === product.id)
+      .reduce((sum, i) => sum + i.quantity, 0);
+    const available = Math.max(product.stock - alreadyHere, 0);
+    let soldWithoutStock: ComandaItem["soldWithoutStock"] = null;
+    if (input.quantity > available) {
+      if (!input.confirmInHand) {
+        return fail("NEEDS_CONFIRMATION", `Estoque no sistema: ${available}. Você tem o produto em mãos para entregar agora?`);
+      }
+      soldWithoutStock = { confirmedBy: ctx.userId, at: input.at };
+    }
+    line = { kind: "product", refId: product.id, name: product.name, unitPrice: product.salePrice, soldWithoutStock };
   }
 
   const newItem: ComandaItem = {
-    ...item,
+    ...line,
     id: input.itemId,
     quantity: input.quantity,
     barberId: input.barber.id,
@@ -200,8 +277,11 @@ export function addItem(
 /**
  * R-CMD-08: remove an item from an open comanda. A barber can only remove
  * items in his own name. R-CMD-17 applies (the discount is removed).
+ * R-CMD-21: the removed item is KEPT in `removedItems` (who and when). Without
+ * a trail, a barber could add an item, take the client's cash, remove the
+ * item and discard the empty comanda.
  */
-export function removeItem(ctx: TenantContext, comanda: Comanda, itemId: string): Result<Comanda> {
+export function removeItem(ctx: TenantContext, comanda: Comanda, itemId: string, at: Date): Result<Comanda> {
   const editable = requireEditable(ctx, comanda);
   if (!editable.ok) return editable;
   const item = comanda.items.find((i) => i.id === itemId);
@@ -209,7 +289,12 @@ export function removeItem(ctx: TenantContext, comanda: Comanda, itemId: string)
   if (item.barberId !== ctx.userId && !can(ctx.role, "comanda.edit_any")) {
     return fail("FORBIDDEN", "Você só pode remover itens no seu nome.");
   }
-  return ok({ ...comanda, items: comanda.items.filter((i) => i.id !== itemId), discount: null });
+  return ok({
+    ...comanda,
+    items: comanda.items.filter((i) => i.id !== itemId),
+    removedItems: [...comanda.removedItems, { item, by: ctx.userId, at }],
+    discount: null,
+  });
 }
 
 /** R-CMD-09: a free-text note (e.g. how a split payment was made, until v2). */
@@ -249,6 +334,7 @@ export type CloseResult = {
   comanda: Comanda;
   cashMovements: CashMovement[];
   stockMovements: StockMovement[];
+  audits: AuditEntry[];
 };
 
 /**
@@ -258,7 +344,8 @@ export type CloseResult = {
  * - one payment method per comanda (split payment is v2 — use the note);
  * - for cash, the received amount is optional; if given it must cover the
  *   total and the change is calculated; for other methods it must be empty;
- * - effects: one sale cash movement (if total > 0) and one stock movement per product line.
+ * - effects: one sale cash movement (if total > 0), one stock movement per
+ *   product line, and one audit entry per item sold without stock.
  */
 export function closeComanda(
   ctx: TenantContext,
@@ -287,6 +374,7 @@ export function closeComanda(
     ...comanda,
     status: "closed",
     payment: { method: input.method, total, receivedCash: input.receivedCash, change, registerId: open.value.id },
+    pendingSince: null,
     closedAt: input.at,
     closedBy: ctx.userId,
   };
@@ -297,31 +385,73 @@ export function closeComanda(
   const stockMovements = comanda.items
     .filter((item) => item.kind === "product")
     .map((item) => saleMovement(ctx.barbershopId, item.refId, item.quantity, comanda.id, ctx.userId, input.at));
-  return ok({ comanda: closed, cashMovements, stockMovements });
+  const audits: AuditEntry[] = comanda.items
+    .filter((item) => item.soldWithoutStock)
+    .map((item) => ({
+      barbershopId: ctx.barbershopId,
+      action: "comanda.sold_without_stock" as const,
+      userId: item.soldWithoutStock?.confirmedBy ?? ctx.userId,
+      at: input.at,
+      entityId: comanda.id,
+      details: { number: comanda.number, product: item.name, quantity: item.quantity },
+    }));
+  return ok({ comanda: closed, cashMovements, stockMovements, audits });
 }
 
 /** R-CMD-14: an open comanda with no items can be discarded without a reason. */
 export function discardComanda(ctx: TenantContext, comanda: Comanda, at: Date): Result<Comanda> {
   const editable = requireEditable(ctx, comanda);
   if (!editable.ok) return editable;
-  if (comanda.items.length > 0) return fail("NOT_ALLOWED", "A comanda tem itens. Use cancelar e informe o motivo.");
+  if (comanda.items.length > 0) return fail("NOT_ALLOWED", "A comanda tem itens. Peça ao dono para cancelar e informar o motivo.");
   return ok({ ...comanda, status: "discarded", closedAt: at, closedBy: ctx.userId });
 }
 
 /**
+ * R-CMD-19: the client booked and did not show up. This is NOT a cancellation:
+ * the comanda is paused (it leaves the day's agenda), the absence is recorded
+ * on the comanda and in the audit log, and the owner reviews it when closing
+ * the register.
+ * - only comandas that are appointments;
+ * - only AFTER the appointment time (cannot be used to hide a client who is
+ *   still coming);
+ * - the barber of that comanda, or the owner;
+ * - no stock or money is touched.
+ */
+export function markNoShow(ctx: TenantContext, comanda: Comanda, at: Date): Result<{ comanda: Comanda; audit: AuditEntry }> {
+  const allowed = requirePermission(ctx, "comanda.mark_no_show");
+  if (!allowed.ok) return allowed;
+  const editable = requireEditable(ctx, comanda);
+  if (!editable.ok) return editable;
+  if (!comanda.appointment) return fail("INVALID_STATE", "Só comandas agendadas podem ser marcadas como 'não compareceu'.");
+  if (at.getTime() < comanda.appointment.at.getTime()) {
+    return fail("NOT_ALLOWED", "Só é possível marcar 'não compareceu' depois do horário agendado.");
+  }
+  return ok({
+    comanda: { ...comanda, status: "no_show", pendingSince: null, noShow: { by: ctx.userId, at } },
+    audit: audit(ctx, "comanda.no_show", comanda, at, {
+      appointmentAt: comanda.appointment.at.toISOString(),
+      itemCount: comanda.items.length,
+      total: comandaTotal(comanda),
+    }),
+  });
+}
+
+/**
  * R-CMD-15: cancel.
- * - open comanda with items: the barber (own) or the owner, with a reason;
- * - closed comanda: owner only, with a reason, and the cash register must be
- *   open — the money and the products go back through reversal movements in
- *   the CURRENT register (history is never deleted);
- * - every cancellation is audited.
+ * - OPEN comanda: OWNER only, with a reason (R-CMD-19: a barber who has a
+ *   client that did not come uses "no-show"; a barber who made a mistake
+ *   removes his item and discards the empty comanda);
+ * - PAID comanda: owner only, the register must be open, and reversal
+ *   movements return the money and the products to the CURRENT register
+ *   (history is never deleted);
+ * - every cancellation needs a reason (≥ 5 characters) and is audited.
  */
 export function cancelComanda(
   ctx: TenantContext,
   comanda: Comanda,
   input: { reason: string; at: Date },
   register: CashRegister | null,
-): Result<CloseResult & { audit: AuditEntry }> {
+): Result<Omit<CloseResult, "audits"> & { audit: AuditEntry }> {
   const tenant = assertSameTenant(ctx, comanda);
   if (!tenant.ok) return tenant;
   if (!isValidReason(input.reason)) return fail("INVALID_INPUT", "Informe o motivo do cancelamento (mínimo 5 caracteres).");
@@ -329,13 +459,13 @@ export function cancelComanda(
   const auditEntry = audit(ctx, "comanda.cancel", comanda, input.at, { previousStatus: comanda.status, total: comandaTotal(comanda), reason: cancellation.reason });
 
   if (comanda.status === "open") {
-    const editable = requireEditable(ctx, comanda);
-    if (!editable.ok) return editable;
+    const allowed = requirePermission(ctx, "comanda.cancel_open");
+    if (!allowed.ok) return fail("FORBIDDEN", "Só o dono cancela. Cliente não veio? Use 'Não compareceu'.");
     if (comanda.items.length === 0) return fail("NOT_ALLOWED", "Comanda vazia: use descartar.");
-    return ok({ comanda: { ...comanda, status: "cancelled", cancellation }, cashMovements: [], stockMovements: [], audit: auditEntry });
+    return ok({ comanda: { ...comanda, status: "cancelled", pendingSince: null, cancellation }, cashMovements: [], stockMovements: [], audit: auditEntry });
   }
 
-  if (comanda.status !== "closed" || !comanda.payment) return fail("INVALID_STATE", "Esta comanda já foi cancelada ou descartada.");
+  if (comanda.status !== "closed" || !comanda.payment) return fail("INVALID_STATE", "Esta comanda já foi cancelada, descartada ou marcada como não compareceu.");
   const allowed = requirePermission(ctx, "comanda.cancel_closed");
   if (!allowed.ok) return fail("FORBIDDEN", "Só o dono pode cancelar uma comanda já paga.");
   const open = requireOpenRegister(ctx, register);
@@ -356,6 +486,11 @@ export function cancelComanda(
  * R-CMD-16: the owner can correct the payment method of a closed comanda
  * (e.g. Pix recorded as cash) only while the register where it was paid is
  * still open. Two correction movements keep the history; the change is audited.
+ *
+ * Why only while that register is open: a closed register is a SEALED day.
+ * Its counted cash and its difference were already explained. If a sale
+ * could be re-labelled afterwards ("it was Pix, not cash"), a cash shortage
+ * could disappear from the books days later.
  */
 export function changePaymentMethod(
   ctx: TenantContext,
