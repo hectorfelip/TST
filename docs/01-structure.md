@@ -2,6 +2,7 @@
 
 > Status: **approved by the owner.**
 > Changes after approval: `src/components` (shared UI) and `src/prototype` (fake data, removed in step 5) were added in step 2.
+> In step 3 the dependency direction was corrected: the Comanda writes into Finance and Stock, so **Finance does not depend on Comanda** (checked by `src/modules/architecture.test.ts`).
 
 ## 1. What problem are we solving?
 
@@ -52,8 +53,8 @@ With the service order, **one action** ("close the comanda") updates everything:
 | 2 | **Employees** | Name, role, active or not. *(Commission calculation is out of the MVP — see decision 5.)* | Auth |
 | 3 | **Services** | Catalog: name, price, average time. | — |
 | 4 | **Stock** | Products (for sale or for internal use), quantity, minimum quantity alert, stock movements. | — |
-| 5 | **Comanda** *(new)* | Open → add services/products → close with payment method. | 1, 2, 3, 4 |
-| 6 | **Finance** | Cash register (open/close of the day), money in, money out (expenses), simple monthly report, revenue **per barber** (no commission math). | 5 |
+| 5 | **Comanda** *(new)* | Open → add services/products → close with payment method. | 1, 2, 3, 4, 6 |
+| 6 | **Finance** | Cash register (open/close of the day), money in, money out (expenses), simple monthly report, revenue **per barber** (no commission math). | — *(corrected in step 3)* |
 
 ### Out of the MVP (on purpose)
 

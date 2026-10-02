@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { ButtonLink, Card, Money, Note, PageHeader, styles } from "@/components/ui";
 import { clients, comandas, comandaTotal, employeeName } from "@/prototype/mock-data";
-import { getDemoRole } from "@/prototype/demo-role";
+import { DEMO_BARBER_ID, getDemoRole } from "@/prototype/demo-role";
 
 export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
   const { id } = await props.params;
@@ -9,11 +9,14 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
   if (!client) notFound();
   const isOwner = (await getDemoRole()) === "owner";
 
-  const history = comandas.filter((c) => c.clientId === client.id && c.status === "fechada");
+  // Decision B (R-CLI-05): a barber sees no phone and only his own visits.
+  const history = comandas.filter(
+    (c) => c.clientId === client.id && c.status === "fechada" && (isOwner || c.items.some((i) => i.barberId === DEMO_BARBER_ID)),
+  );
 
   return (
     <>
-      <PageHeader title={client.name} subtitle={client.phone} action={isOwner && <ButtonLink href={`/clientes/${client.id}`} variant="secondary">Editar</ButtonLink>} />
+      <PageHeader title={client.name} subtitle={isOwner ? client.phone : undefined} action={isOwner && <ButtonLink href={`/clientes/${client.id}`} variant="secondary">Editar</ButtonLink>} />
 
       <Card title="Resumo">
         <p>{client.visits} visitas · última há {client.lastVisitDaysAgo} dias</p>
@@ -22,7 +25,7 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
 
       <Card title="Histórico">
         {history.length === 0 ? (
-          <p className={styles.rowMeta}>Sem atendimentos neste protótipo.</p>
+          <p className={styles.rowMeta}>{isOwner ? "Sem atendimentos neste protótipo." : "Você ainda não atendeu este cliente."}</p>
         ) : (
           <ul className={styles.list}>
             {history.map((c) => (

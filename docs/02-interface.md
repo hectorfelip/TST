@@ -1,8 +1,8 @@
-# Step 2 — Interface (v3, adjusted after the barber's feedback)
+# Step 2 — Interface (APPROVED)
 
-> Status: **barber feedback received (section 11) and screens adjusted
-> (section 12). Waiting for 1 decision (section 12.4) and approval.**
-> Next step (3 — Rules) only starts after approval.
+> Status: **approved by the owner**, with **decision B** for client
+> visibility (section 12.4). Pending: a test with a barbershop **owner**
+> before step 4 (section 12.3).
 
 ## 1. Goal of this step
 
@@ -158,7 +158,7 @@ barber will not use it.
 - [x] Prototype shown to one barber; feedback written in section 11.
 - [ ] Prototype shown to the **owner** of a barbershop (see section 12.3).
 - [x] Screens adjusted after the feedback (section 12.2), checked with 27 new automated browser cases.
-- [ ] Owner approved this document.
+- [x] Owner approved this document (decision B chosen for section 12.4).
 
 Screenshots (phone): [Painel](img/02-mobile-painel.png) ·
 [Comanda](img/02-mobile-comanda.png) · [Fechar](img/02-mobile-fechar.png) ·
@@ -288,7 +288,9 @@ This is a real privacy question (LGPD: collect and show only what is needed).
 | **B. Shared base, limited (recommended)** | Search by name, notes, **only his own history**; **no phone numbers**, no list export | Serves any client; protects the shop's client list | Barber cannot call a client himself |
 | C. Each barber's own clients | Only clients he has served | Maximum privacy | A new barber sees nobody; client "belongs" to a barber — owners usually dislike this |
 
-**My recommendation: B.** The client list is one of the shop's most valuable
+**Decision: B** (chosen by the owner; implemented as rule R-CLI-05 in step 3).
+
+**My recommendation was B.** The client list is one of the shop's most valuable
 assets; owners worry about barbers taking it to a competitor. Confirm with the
 owner during his test.
 

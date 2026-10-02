@@ -20,7 +20,8 @@ export function CloseCashFlow({ expected, openComandas }: { expected: Cents; ope
   const invalid = counted.trim() !== "" && countedCents === null;
   const difference = countedCents === null ? null : countedCents - expected;
   const needsReason = difference !== null && difference !== 0;
-  const canClose = difference !== null && (!needsReason || reason.trim().length >= 5);
+  // R-CSH-05: closing is blocked while comandas are open.
+  const canClose = openComandas === 0 && difference !== null && (!needsReason || reason.trim().length >= 5);
 
   if (closed) {
     return (
@@ -37,7 +38,7 @@ export function CloseCashFlow({ expected, openComandas }: { expected: Cents; ope
     <>
       {openComandas > 0 && (
         <Card title={`Atenção: ${openComandas} comandas abertas`}>
-          <p>Feche ou descarte as comandas abertas antes de fechar o caixa, senão o valor do dia fica errado.</p>
+          <p>Feche, cancele ou descarte as comandas abertas. O caixa só fecha quando não houver nenhuma aberta.</p>
           <Link href="/comandas" className={styles.buttonSecondary}>Ver comandas abertas</Link>
         </Card>
       )}

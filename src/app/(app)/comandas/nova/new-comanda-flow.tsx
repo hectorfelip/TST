@@ -124,7 +124,7 @@ export function NewComandaFlow({
             <input
               id="client-search"
               className={styles.input}
-              placeholder="Nome ou telefone"
+              placeholder={role === "owner" ? "Nome ou telefone" : "Nome do cliente"}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -140,7 +140,7 @@ export function NewComandaFlow({
                   >
                     <span className={styles.rowMain}>
                       <span>{c.name}</span>
-                      <span className={styles.rowMeta}>{c.phone}</span>
+                      {c.phone && <span className={styles.rowMeta}>{c.phone}</span>}
                     </span>
                   </button>
                 </li>

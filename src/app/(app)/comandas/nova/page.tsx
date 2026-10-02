@@ -13,7 +13,8 @@ export default async function NewComandaPage() {
       role={role}
       currentUserId={currentUserId}
       barbers={employees.filter((e) => e.active).map(({ id, name }) => ({ id, name }))}
-      clients={clients.map(({ id, name, phone }) => ({ id, name, phone }))}
+      // Decision B: phone numbers are never sent to a barber's browser.
+      clients={clients.map(({ id, name, phone }) => ({ id, name, phone: role === "owner" ? phone : "" }))}
       services={services.filter((s) => s.favorite && s.active)}
       products={products.filter((p) => p.use === "venda")}
     />
