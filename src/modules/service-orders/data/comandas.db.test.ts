@@ -31,7 +31,7 @@ import {
   setNoteCmd,
 } from "./commands";
 import { getComanda, listAppointments, listComandas } from "./comandas.repo";
-import { runExpiryJob } from "./jobs";
+import { forgetOldKeys, runExpiryJob } from "./jobs";
 
 let db: TestDb;
 beforeAll(async () => {
@@ -374,7 +374,7 @@ describe("pending comandas expire (R-CMD-22): the option of each barbershop", ()
     const w = await createWorld(db);
     const id = await pendingComanda(w, 5);
     const young = await pendingComanda(w, 2);
-    expect(await runExpiryJob(db.appPool, db.adminPool, at(0))).toMatchObject({ cancelled: 1 });
+    expect(await runExpiryJob(db.appPool, at(0))).toMatchObject({ cancelled: 1 });
     const old = await db.as(w.owner, (tx) => getComanda(tx, id));
     expect(old).toMatchObject({ status: "cancelled", pendingSince: null, cancellation: { by: "system" } });
     expect(old?.cancellation?.reason).toContain("5 dias");
@@ -382,7 +382,7 @@ describe("pending comandas expire (R-CMD-22): the option of each barbershop", ()
     const audit = await db.as(w.owner, (tx) => listAudit(tx, { action: "comanda.expired" }));
     expect(audit).toHaveLength(1);
     expect(audit[0].userId).toBe("system");
-    expect(await runExpiryJob(db.appPool, db.adminPool, at(0))).toMatchObject({ cancelled: 0 }); // running again changes nothing
+    expect(await runExpiryJob(db.appPool, at(0))).toMatchObject({ cancelled: 0 }); // running again changes nothing
   });
 
   it("each barbershop has ITS OWN deadline, and a shop that turned the option OFF is never touched", async () => {
@@ -395,7 +395,7 @@ describe("pending comandas expire (R-CMD-22): the option of each barbershop", ()
     await setSettings(short, true, 3); // 4 days old, deadline 3 → cancelled
     await setSettings(long, true, 10); // 4 days old, deadline 10 → stays
     await setSettings(off, false, 5); // option off → stays, even after 400 days
-    await runExpiryJob(db.appPool, db.adminPool, at(0));
+    await runExpiryJob(db.appPool, at(0));
     expect((await db.as(short.owner, (tx) => getComanda(tx, a)))?.status).toBe("cancelled");
     expect((await db.as(long.owner, (tx) => getComanda(tx, b)))?.status).toBe("open");
     expect((await db.as(off.owner, (tx) => getComanda(tx, c)))?.status).toBe("open");
@@ -440,5 +440,18 @@ describe("timing", () => {
   it("HOUR constant sanity (guards the helpers used above)", () => {
     expect(HOUR).toBe(3_600_000);
     expect(at(1).getTime() - at(0).getTime()).toBe(HOUR);
+  });
+
+  it("the job needs no owner connection, and forgets only old idempotency keys", async () => {
+    const w = await createWorld(db, "Barbearia Chaves");
+    await db.adminPool.query(
+      `INSERT INTO idempotency_keys (barbershop_id, key, action, created_at) VALUES ($1, 'chave-velha-001', 'x', $2), ($1, 'chave-nova-0001', 'x', $3)`,
+      [w.shop.id, new Date(at(0).getTime() - 40 * 24 * HOUR), new Date(at(0).getTime() - 2 * 24 * HOUR)],
+    );
+    expect(await forgetOldKeys(db.appPool, at(0))).toBe(1);
+    const left = await db.adminPool.query("SELECT key FROM idempotency_keys WHERE barbershop_id = $1", [w.shop.id]);
+    expect(left.rows.map((r) => r.key)).toEqual(["chave-nova-0001"]);
+    // and the functions are not open to anybody else: the application role is the only one allowed
+    await expectPgError(db.appPool.query("DELETE FROM idempotency_keys"), PG.insufficientPrivilege);
   });
 });

@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
-import { runExpiryJob } from "@/modules/service-orders/data/jobs";
-import { adminPool, appPool } from "@/server/db";
+import { forgetOldKeys, runExpiryJob } from "@/modules/service-orders/data/jobs";
+import { appPool } from "@/server/db";
 
 /**
  * The daily job. A scheduler (Vercel Cron, GitHub Actions, cron + curl...) calls it once a day:
@@ -8,8 +8,8 @@ import { adminPool, appPool } from "@/server/db";
  *
  *  - cancels the pending comandas that passed their barbershop's deadline (only barbershops that kept the option on);
  *  - forgets idempotency keys older than 30 days.
- * Safe to call twice: the second call finds nothing to do.
- * It is the ONLY place that uses the owner connection while the app runs, because it must look at every barbershop.
+ * Safe to call twice: the second call finds nothing to do. It uses the SAME restricted connection as the screens
+ * (two small database functions let it see every barbershop): the owner's password never lives on the server.
  */
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -20,10 +20,9 @@ export async function GET(request: Request) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
   try {
-    const admin = adminPool();
-    const result = await runExpiryJob(await appPool(), admin, new Date());
-    const cleaned = await admin.query("DELETE FROM idempotency_keys WHERE created_at < now() - interval '30 days'");
-    return Response.json({ ...result, forgottenKeys: cleaned.rowCount ?? 0 });
+    const pool = await appPool();
+    const result = await runExpiryJob(pool, new Date());
+    return Response.json({ ...result, forgottenKeys: await forgetOldKeys(pool) });
   } catch (error) {
     console.error("[job] expiry failed:", error);
     return Response.json({ error: "failed" }, { status: 500 });

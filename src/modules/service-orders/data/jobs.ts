@@ -5,9 +5,10 @@
  */
 import type { Pool } from "pg";
 import { insertAudit } from "@/db/audit";
-import { withTenant, type Tx } from "@/db/client";
+import { withPublic, withTenant, type Tx } from "@/db/client";
 import { getSettings } from "@/modules/barbershops/data/settings.repo";
 import { pendingExpiry } from "@/modules/barbershops/rules/settings";
+import { DAY_MS } from "@/shared/time";
 import { expirePendingComandas } from "../rules/day-close";
 import { listPending, saveComanda } from "./comandas.repo";
 
@@ -22,15 +23,20 @@ export async function expirePendingCmd(tx: Tx, at: Date): Promise<number> {
 }
 
 /**
- * All barbershops. Listing them needs the OWNER connection (`adminPool`): no
- * barbershop can see the others. The work itself runs as the application
- * role, one transaction per barbershop, with the user "system".
+ * All barbershops. No barbershop can see the others, so the ids come from a small database function (migration 005):
+ * the running app never needs the owner's password. The work itself runs as the application role,
+ * one transaction per barbershop, with the user "system".
  */
-export async function runExpiryJob(appPool: Pool, adminPool: Pool, at = new Date()): Promise<{ barbershops: number; cancelled: number }> {
-  const { rows } = await adminPool.query<{ id: string }>("SELECT id FROM barbershops ORDER BY created_at");
+export async function runExpiryJob(appPool: Pool, at = new Date()): Promise<{ barbershops: number; cancelled: number }> {
+  const ids = await withPublic(appPool, (tx) => tx.query<{ id: string }>("SELECT list_barbershop_ids() AS id"));
   let cancelled = 0;
-  for (const shop of rows) {
+  for (const shop of ids) {
     cancelled += await withTenant(appPool, { barbershopId: shop.id, userId: "system" }, (tx) => expirePendingCmd(tx, at));
   }
-  return { barbershops: rows.length, cancelled };
+  return { barbershops: ids.length, cancelled };
+}
+
+/** Housekeeping: idempotency keys older than 30 days are useless (a retry never comes that late). */
+export function forgetOldKeys(appPool: Pool, now = new Date()): Promise<number> {
+  return withPublic(appPool, async (tx) => (await tx.one<{ n: number }>("SELECT forget_old_idempotency_keys($1) AS n", [new Date(now.getTime() - 30 * DAY_MS)])).n);
 }

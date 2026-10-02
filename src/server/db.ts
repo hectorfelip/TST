@@ -1,14 +1,13 @@
 import "server-only";
 /**
- * The database connections of the running application.
- *  - appPool(): the restricted role `app_user` (Row Level Security applies). Used for EVERYTHING a person does.
- *  - adminPool(): the owner. Used ONLY by the daily job (it must look at every barbershop). Never by a screen.
- * Pools are kept on `globalThis` so the development server's hot reload does not open a new one every time.
+ * The database connection of the running application: the restricted role `app_user` (Row Level Security applies).
+ * It is the ONLY connection the online app has. The owner's password (migrations, admin scripts) never lives on the server.
+ * The pool is kept on `globalThis` so the development server's hot reload does not open a new one every time.
  */
 import type { Pool } from "pg";
 import { assertSafeAppRole, createPool } from "@/db/client";
 
-type Holder = { app?: Pool; admin?: Pool; checked?: Promise<void> };
+type Holder = { app?: Pool; checked?: Promise<void> };
 const holder = ((globalThis as { __barbershopDb?: Holder }).__barbershopDb ??= {});
 
 function required(name: string): string {
@@ -29,9 +28,4 @@ export async function appPool(): Promise<Pool> {
   }
   await holder.checked; // refuses to run if the role could bypass Row Level Security
   return holder.app;
-}
-
-export function adminPool(): Pool {
-  holder.admin ??= createPool(required("DATABASE_ADMIN_URL"), { max: 2 });
-  return holder.admin;
 }

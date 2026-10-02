@@ -124,6 +124,6 @@ describe("hosted PostgreSQL: platform roles have no door into the data", () => {
 
   it("both migrations are recorded", async () => {
     const r = await pool.query("SELECT name FROM schema_migrations ORDER BY name");
-    expect(r.rows.map((x) => x.name)).toEqual(["001_init.sql", "002_lock_out_platform_roles.sql", "003_login_and_idempotency.sql", "004_temporary_passwords.sql"]);
+    expect(r.rows.map((x) => x.name)).toEqual(["001_init.sql", "002_lock_out_platform_roles.sql", "003_login_and_idempotency.sql", "004_temporary_passwords.sql", "005_job_without_owner.sql", "006_fixed_search_path.sql"]);
   });
 });
