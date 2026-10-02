@@ -1,9 +1,8 @@
-# Step 2 — Interface (v2, waiting for the barbershop owner's feedback)
+# Step 2 — Interface (v3, adjusted after the barber's feedback)
 
-> Status: **decisions answered. Next: show the prototype to the barbershop
-> owner** (see [demo guide](02-demo-guide.md)), write the feedback in
-> section 11, adjust the screens, then approve.
-> Next step (3 — Rules) only starts after that.
+> Status: **barber feedback received (section 11) and screens adjusted
+> (section 12). Waiting for 1 decision (section 12.4) and approval.**
+> Next step (3 — Rules) only starts after approval.
 
 ## 1. Goal of this step
 
@@ -67,10 +66,11 @@ Navigation: **bottom tab bar** on the phone (Painel, Comandas, Caixa, Mais),
 | Login | `/login` | ✅ | ✅ | — |
 | Painel (dashboard) | `/` | ✅ full | ⚠️ "Meu dia": own revenue and own open comandas | Money in today, low stock |
 | Comandas (list) | `/comandas` | ✅ all | ⚠️ own only | — |
-| Nova comanda | `/comandas/nova` | ✅ | ✅ | — |
+| Nova comanda (interactive) | `/comandas/nova` | ✅ | ✅ | — |
 | Comanda (detail) | `/comandas/[id]` | ✅ | ⚠️ own only | — |
 | Fechar comanda | `/comandas/[id]/fechar` | ✅ with discount | ⚠️ own only, no discount | Money in |
 | Caixa (cash register) | `/caixa` | ✅ | ❌ | Money in and out |
+| Fechar caixa (interactive) | `/caixa/fechar` | ✅ | ❌ | Does the money match? |
 | Clientes | `/clientes`, `/clientes/[id]` | ✅ | ⚠️ search, view, create (no edit, no delete) | Clients who stopped coming ("Sumido" badge) |
 | Serviços | `/servicos` | ✅ | ❌ | — |
 | Estoque | `/estoque` | ✅ | ❌ | Products running out |
@@ -155,8 +155,9 @@ barber will not use it.
 - [x] Unknown comanda (`/comandas/9999`) returns 404, not a crash.
 - [x] `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` pass.
 - [x] Owner answered the questions in section 10.
-- [ ] Prototype shown to the barbershop owner (and one barber); feedback written in section 11.
-- [ ] Screens adjusted after the feedback.
+- [x] Prototype shown to one barber; feedback written in section 11.
+- [ ] Prototype shown to the **owner** of a barbershop (see section 12.3).
+- [x] Screens adjusted after the feedback (section 12.2), checked with 27 new automated browser cases.
 - [ ] Owner approved this document.
 
 Screenshots (phone): [Painel](img/02-mobile-painel.png) ·
@@ -181,8 +182,14 @@ barber: [Meu dia](img/02-mobile-barbeiro.png) · computer: [Painel](img/02-deskt
 - An **empty** comanda can be discarded without a reason.
 - **Cash in the drawer** = opening cash + cash payments − cash expenses − withdrawals. Pix and cards never count.
 - One payment method per comanda (split payment is v2).
+- *(from feedback)* Every discount records **who** gave it and **how much**; discount can never be bigger than the total.
+- *(from feedback)* Closing the cash register with a difference **requires a reason**; the difference is recorded, never silently adjusted.
+- *(from feedback)* Closing the cash register **warns about open comandas**.
+- *(from feedback)* The owner can **correct the payment method** of a closed comanda (e.g. Pix recorded as cash), and the change is logged.
+- *(from feedback)* A comanda can have a free-text **note** (used for split payments until v2).
+- *(from feedback)* Each barber has an **individual login** (no shared account).
 
-## 11. Feedback from the barbershop owner
+## 11. Feedback from the barbershop (barber test)
 
 Date: 02/10/2026
 Barbershop (no personal data needed): Barber pro
@@ -232,6 +239,58 @@ Things he asked for that are NOT in the MVP:
 
 Did anything change our decisions (split payment, commission, discount)?
 - false
+
+## 12. Analysis of the feedback (devil's advocate)
+
+### 12.1 What the feedback proves — and what it does not
+
+| It proves | It does **not** prove |
+|-----------|----------------------|
+| Tasks 2–7 are easy: all done in 10–25 s. | That an **owner** wants this: no owner tested (`owner [ ]`). Owners decide discount rules, commission and **pay** for the product. |
+| The barber's main screen is **Comandas** (answer 8). Our focus is right. | **Willingness to pay**: question 11 has no answer. This is the most important business signal and it is missing. |
+| The owner/barber permissions make sense to a barber (task 7, answer 7). | The **real current process**: answers 1–3 describe what he *would* do in the prototype ("Pelo fluxo apresentado, eu conferiria…"), not what happened yesterday. |
+| The main flow had a **real bug** (task 1 failed). | That the flow is fast enough with real hands, a real client and bad Wi-Fi. The 6 taps were not measured with a person after the fix. |
+
+Sample size: **1 person, 1 barbershop**. Good for finding usability bugs; not
+enough to decide the product.
+
+### 12.2 Changes made because of the feedback
+
+| # | Feedback | Change | Checked |
+|---|---------|--------|---------|
+| 1 | Task 1 failed: "Cliente avulso" opened the existing comanda #1027 of Pedro Alves (**prototype bug**). | `/comandas/nova` is now **interactive**: it creates a new, empty comanda (#1028) for the logged-in barber; services and products can be added and removed; payment is chosen; the comanda closes. Nothing is saved (prototype). | Automated: walk-in + Corte + Pix closes as **#1028, R$ 45,00, in exactly 6 taps**. |
+| 2 | "Faturamento não é comissão a pagar" (answer 3). | "Faturado" renamed to **"Valor atendido"**; barber sees **"Valor dos meus atendimentos"** with a note: *this is not your commission*. Reports tell the owner to calculate commission outside the system until v2. | Visual + automated. |
+| 3 | Split payment happens; needs "um procedimento claro no piloto" (answer 4). | Close screen has an **Observação** field and a written procedure: choose the method with the biggest value, write the split in the note, the owner corrects it at cash closing. | Visual. |
+| 4 | Cash closing "ainda precisaria ser testado" (answer 1). | New interactive **Fechar caixa** screen: counted value → shows *Bateu / Sobra / Falta*; a difference **requires a reason**; warns about open comandas. | Automated: R$ 128,50 → "Bateu"; R$ 120,00 → "Falta R$ 8,50" + reason required. |
+| 5 | Discount: "registraria quem autorizou e quanto" (answer 7). | Owner-only discount field in the new flow, cannot exceed the total; screen says the system records who gave it. | Automated: R$ 50 discount on R$ 45 blocked; R$ 5 → total R$ 40,00. |
+| 6 | Change for cash payments. | Typing the cash received shows the **change (troco)**, or blocks confirmation if the money is not enough. | Automated: R$ 50 on R$ 35 → troco R$ 15,00. |
+
+### 12.3 What is still missing (and the solution)
+
+| Gap | Risk | Solution |
+|-----|------|----------|
+| **No owner test** | We build for the user but the buyer may say no (price, commission, rules). | Run the demo guide with **one owner** (tasks 2–6 + questions 3, 5, 7, 11). Can happen in parallel with step 3, but **before step 4 (Data)** — commission and discount rules change the database. |
+| **Question 11 (money) unanswered** | We do not know if anyone pays for this. | Ask the owner. Without at least one "I pay R$ X today for Y", the SaaS is a hypothesis. |
+| **Answers are hypothetical** | People predict their behaviour badly. | In the owner test, ask about **yesterday's** cash closing, not about the prototype. |
+| **Commission is "urgent before payouts"** (answer 5) | If the pilot shop expects commission, it will not use the MVP. | Keep it out of the MVP (your decision), but **ask the owner** if he accepts calculating commission outside the system during the pilot. If not, commission moves into the MVP. |
+| **Unstable connection, one hand, during service** (answer 6) | The comanda fails while the client is waiting. | Step 5 must define what happens when the internet drops (e.g. clear error + retry, never a lost comanda). Real offline mode stays v2. |
+
+### 12.4 Decision needed: what can a barber see about clients?
+
+The barber noticed that **Rafael can see every client, every phone number and
+the history of a client with another barber (Marcos with Carlos)**.
+
+This is a real privacy question (LGPD: collect and show only what is needed).
+
+| Option | Barber sees | Good | Bad |
+|--------|------------|------|-----|
+| A. Shared base, full access (today) | All clients, phones, full history | Any barber can serve any client; simple | Barber can copy the whole client list when he leaves the shop (common fear of owners) |
+| **B. Shared base, limited (recommended)** | Search by name, notes, **only his own history**; **no phone numbers**, no list export | Serves any client; protects the shop's client list | Barber cannot call a client himself |
+| C. Each barber's own clients | Only clients he has served | Maximum privacy | A new barber sees nobody; client "belongs" to a barber — owners usually dislike this |
+
+**My recommendation: B.** The client list is one of the shop's most valuable
+assets; owners worry about barbers taking it to a competitor. Confirm with the
+owner during his test.
 
 ## Glossary
 

@@ -20,7 +20,7 @@ function ReportsPageContent() {
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
-              <tr><th>Barbeiro</th><th className={styles.num}>Comandas</th><th className={styles.num}>Faturado</th></tr>
+              <tr><th>Barbeiro</th><th className={styles.num}>Comandas</th><th className={styles.num}>Valor atendido</th></tr>
             </thead>
             <tbody>
               {r.byBarber.map((b) => (
@@ -33,7 +33,7 @@ function ReportsPageContent() {
             </tbody>
           </table>
         </div>
-        <Note>Comissão fica para a versão 2. Os dados já são guardados.</Note>
+        <Note>Valor atendido não é comissão a pagar. O cálculo da comissão fica para a versão 2 (os dados já são guardados); até lá, calcule e confira as comissões fora do sistema.</Note>
       </Card>
 
       <Card title="Por forma de pagamento">

@@ -315,3 +315,33 @@
   font-weight: 400;
   color: var(--muted);
 }
+
+.rowButton {
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.iconButton {
+  min-width: 36px;
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.error {
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

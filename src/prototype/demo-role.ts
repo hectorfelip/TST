@@ -7,8 +7,13 @@ import type { Role } from "@/shared/tenant";
 
 export const DEMO_ROLE_COOKIE = "demo_role";
 
-/** In barber mode the demo is logged in as Rafael. */
+/** In barber mode the demo is logged in as Rafael; in owner mode as Carlos. */
 export const DEMO_BARBER_ID = "e2";
+export const DEMO_OWNER_ID = "e1";
+
+export async function getDemoUserId(): Promise<string> {
+  return (await getDemoRole()) === "barber" ? DEMO_BARBER_ID : DEMO_OWNER_ID;
+}
 
 export async function getDemoRole(): Promise<Role> {
   const cookieStore = await cookies();

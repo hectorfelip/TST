@@ -51,7 +51,7 @@ function CashRegisterPageContent() {
         <ButtonLink href="/caixa" variant="secondary">Lançar despesa</ButtonLink>
         <ButtonLink href="/caixa" variant="secondary">Retirada (sangria)</ButtonLink>
       </div>
-      <ButtonLink href="/caixa" block>Fechar caixa</ButtonLink>
+      <ButtonLink href="/caixa/fechar" block>Fechar caixa</ButtonLink>
       <Note>Ao fechar, a pessoa conta o dinheiro da gaveta e o sistema mostra a diferença.</Note>
     </>
   );

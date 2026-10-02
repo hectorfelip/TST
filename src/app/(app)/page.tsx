@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Badge, ButtonLink, Card, Money, PageHeader, Stat, styles } from "@/components/ui";
+import { Badge, ButtonLink, Card, Money, Note, PageHeader, Stat, styles } from "@/components/ui";
 import { formatBRL } from "@/shared/money";
 import {
   barberRevenue,
@@ -45,9 +45,10 @@ function BarberDashboard() {
     <>
       <PageHeader title="Meu dia" subtitle={today} action={newComandaButton} />
       <div className={styles.stats}>
-        <Stat label="Meu faturamento hoje" value={formatBRL(revenue)} />
+        <Stat label="Valor dos meus atendimentos hoje" value={formatBRL(revenue)} />
         <Stat label="Atendimentos fechados" value={String(closed.length)} />
       </div>
+      <Note>Este valor não é a sua comissão. O cálculo da comissão chega numa próxima versão.</Note>
       <Card title="Minhas comandas abertas">
         <OpenComandas list={open} />
       </Card>

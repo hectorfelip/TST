@@ -34,7 +34,17 @@ export default async function CloseComandaPage(props: PageProps<"/comandas/[id]/
           <label className={styles.label} htmlFor="cash">Dinheiro recebido (para calcular troco)</label>
           <input id="cash" className={styles.input} inputMode="decimal" placeholder="R$ 0,00" />
         </div>
-        <Note>Pagamento dividido (ex.: parte Pix, parte dinheiro) fica para a versão 2.</Note>
+      </Card>
+
+      <Card title="Observação (opcional)">
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="note">Ex.: pagamento dividido</label>
+          <textarea id="note" className={styles.input} rows={2} />
+        </div>
+        <Note>
+          Pagamento dividido fica para a versão 2. Até lá: escolha a forma de maior valor e escreva aqui como foi
+          pago (ex.: &quot;R$ 20 dinheiro + R$ 25 Pix&quot;). O dono corrige no fechamento do caixa.
+        </Note>
       </Card>
 
       {role === "owner" ? (
