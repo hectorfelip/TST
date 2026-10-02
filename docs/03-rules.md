@@ -365,6 +365,8 @@ if there really are only 2.
 and having no time to restock before delivering — **without** blocking real
 sales when the stock count in the system is simply out of date.
 
+Screenshots (phone): [the question](img/03-mobile-pergunta-estoque.png) · [Configurações](img/03-mobile-configuracoes.png)
+
 **What it does not stop:** someone saying "sim" without having the product.
 That is why his name is saved and the owner is warned.
 
