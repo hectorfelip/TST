@@ -22,10 +22,13 @@ export async function setPasswordCmd(
   if (who.value.self) {
     const current = await tx.maybeOne<{ hash: string | null }>("SELECT own_password_hash() AS hash");
     if (!(await verifyPassword(input.currentPassword ?? "", current?.hash))) return fail("NOT_ALLOWED", "A senha atual não confere.");
+    // Otherwise the forced change at the first login would change nothing.
+    if (input.password === input.currentPassword) return fail("INVALID_INPUT", "A senha nova precisa ser diferente da atual.");
   }
   const hash = await hashPassword(input.password);
   try {
-    await tx.query("SELECT set_password($1, $2, $3)", [input.employeeId, hash, at]);
+    // A password someone else chose for you is temporary: you must change it at the next login. One you chose is not.
+    await tx.query("SELECT set_password($1, $2, $3, $4)", [input.employeeId, hash, at, !who.value.self]);
   } catch (error) {
     if ((error as { code?: string }).code === "42501") return fail("WRONG_TENANT", "Registro não encontrado.");
     throw error;

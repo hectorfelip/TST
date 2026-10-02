@@ -139,7 +139,7 @@ describe("changing passwords", () => {
 
   it("a new password moves 'password_changed_at' forward (old sessions are refused by the server) and is audited", async () => {
     const before = await withPublic(db.appPool, (tx) => lookupSessionUser(tx, rafael.userId));
-    unwrap(await db.as(a.owner, (tx) => setPasswordCmd(tx, a.owner, { employeeId: rafael.userId, password: "rafael-quarta-4", at: at(8) })));
+    unwrap(await db.as(a.owner, (tx) => setPasswordCmd(tx, a.owner, { employeeId: rafael.userId, password: "rafael-quarta-4", at: new Date(before!.passwordChangedAt.getTime() + 60_000) })));
     const after = await withPublic(db.appPool, (tx) => lookupSessionUser(tx, rafael.userId));
     expect(after!.passwordChangedAt.getTime()).toBeGreaterThan(before!.passwordChangedAt.getTime());
     const audit = await db.adminPool.query("SELECT details FROM audit_log WHERE action = 'employee.password_set' AND entity_id = $1 ORDER BY id DESC LIMIT 1", [rafael.userId]);
@@ -155,6 +155,36 @@ describe("changing passwords", () => {
     ).rejects.toThrow("boom");
     expect((await login("rafael-a@x.com", "rafael-quinta-5", at(9))).ok).toBe(false);
     expect((await login("rafael-a@x.com", "rafael-quarta-4", at(9))).ok).toBe(true);
+  });
+});
+
+describe("temporary passwords", () => {
+  const must = async (ctx: TenantContext) => (await withPublic(db.appPool, (tx) => lookupSessionUser(tx, ctx.userId)))?.mustChangePassword;
+
+  it("a password given by the admin is temporary; so is one the owner sets for somebody else", async () => {
+    const p = await addBarber(db, a, "novato", "novato@x.com");
+    await setPasswordAsAdmin(db.adminPool, p.userId, "temporaria-123");
+    expect(await must(p)).toBe(true);
+    unwrap(await db.as(a.owner, (tx) => setPasswordCmd(tx, a.owner, { employeeId: p.userId, password: "temporaria-456" })));
+    expect(await must(p)).toBe(true);
+  });
+
+  it("choosing your own password clears it; it must differ from the temporary one", async () => {
+    const p = await addBarber(db, a, "novato2", "novato2@x.com");
+    await setPasswordAsAdmin(db.adminPool, p.userId, "temporaria-123");
+    const same = await db.as(p, (tx) => setPasswordCmd(tx, p, { employeeId: p.userId, password: "temporaria-123", currentPassword: "temporaria-123" }));
+    expect(same).toMatchObject({ ok: false, error: { code: "INVALID_INPUT" } });
+    expect(await must(p)).toBe(true);
+    unwrap(await db.as(p, (tx) => setPasswordCmd(tx, p, { employeeId: p.userId, password: "minha-propria-9", currentPassword: "temporaria-123" })));
+    expect(await must(p)).toBe(false);
+  });
+
+  it("the owner who resets a password again makes it temporary again; demo data opts out", async () => {
+    const p = await addBarber(db, a, "novato3", "novato3@x.com");
+    await setPasswordAsAdmin(db.adminPool, p.userId, "demo-senha-123", { temporary: false });
+    expect(await must(p)).toBe(false);
+    unwrap(await db.as(a.owner, (tx) => setPasswordCmd(tx, a.owner, { employeeId: p.userId, password: "resetada-pelo-dono" })));
+    expect(await must(p)).toBe(true);
   });
 });
 

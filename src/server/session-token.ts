@@ -5,7 +5,8 @@
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-export const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+/** One day: a barbershop phone is shared and easy to lose. */
+export const SESSION_MAX_AGE_SECONDS = 24 * 60 * 60;
 
 export type SessionToken = { employeeId: string; issuedAt: number; expiresAt: number };
 

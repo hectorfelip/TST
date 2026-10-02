@@ -41,10 +41,10 @@ The files: `src/server/auth.ts` (steps 1–2), `src/server/run.ts` (3–8), `src
 | How is the password stored? | Only as a **salted scrypt hash**, in a table the application role **cannot read** (`employee_credentials`). It can only call small database functions. |
 | Wrong password? | **One single vague message** for every failure (wrong e-mail, wrong password, inactive, locked), and the same response time, so nobody can discover which e-mails exist. |
 | Brute force? | 5 wrong passwords lock that person for **15 minutes**. |
-| What is in the cookie? | Only "who" and "when", signed with a secret (`SESSION_SECRET`). `httpOnly` (page scripts cannot read it), `sameSite=lax`, `secure` when online. Valid for 7 days. |
+| What is in the cookie? | Only "who" and "when", signed with a secret (`SESSION_SECRET`). `httpOnly` (page scripts cannot read it), `sameSite=lax`, `secure` when online. Valid for **1 day** (decision 3). |
 | Is the role in the cookie? | **No.** Role, barbershop and "still active" are read from the database **on every request**. If the owner deactivates, demotes or resets someone, it takes effect on their **next tap**. |
 | New password? | Every session made before the change stops working (the date of the last password change is compared). |
-| First password? | The owner sets it when adding the person (all or nothing). The first owner gets it from `npm run db:create-barbershop`. Forgot the owner's own password? `npm run db:set-password`. |
+| First password? | The owner sets it when adding the person (all or nothing). The first owner gets it from `npm run db:create-barbershop`. Forgot the owner's own password? `npm run db:set-password`. **Every password given by someone else is TEMPORARY** (decision 2): at the next login the person sees only "Escolha a sua senha" (menu hidden, every other screen and action refused) until they choose their own, which must differ from the temporary one. Only the demo data opts out. |
 
 **Honest note:** step 4 left a comment saying "passwords never live in this database" (the idea was an external login service).
 I changed that on purpose: a login service (Supabase Auth, magic link by e-mail) cannot be tried here without creating a project
@@ -105,11 +105,11 @@ Safe to call twice. Without the secret it answers 401. It is the **only** place 
 | Risk | Why it matters | Solution / status |
 |---|---|---|
 | **We store passwords** | A leak of the hashes is our responsibility. | Slow salted hash, hashes unreadable by the app role, lock after 5 mistakes. Moving to an external login service later is possible: only `src/modules/auth` and `src/server/auth.ts` change. |
-| **The owner knows the initial password of each person** | He could log in as them. | Everything is audited with the real user, and people change it on "Minha senha". **Not enforced** (decision 2). |
+| **The owner knows the initial password of each person** | He could log in as them. | **Solved by decision 2:** the first login forces a new password that only the person knows (tested in the browser). Until that first login the temporary one still works: hand it over in person. |
 | **No per-IP limit** | The lock protects one account; an attacker can try many e-mails. | The slow hash limits the speed. Add a limit at the hosting layer (firewall/WAF) before real use (step 6). |
 | **Login needs the hash to leave the database** | `login_lookup` returns it to the application role. | Only code running as `app_user` can call it, every query is parameterized, and the application has no way to run text from the browser as SQL. Accepted. |
 | **No e-mail recovery** | Owner forgot the password. | Another owner resets it; otherwise `db:set-password`. A support routine (who is allowed to ask?) must exist before real use. |
-| **7-day sessions, one device or many** | A stolen phone stays logged in. | Changing the password logs every device out; deactivating the person stops them immediately. No "log out all devices" button yet. |
+| **1-day sessions** | A stolen phone stays logged in until the cookie expires. | One day maximum (decision 3); changing the password logs every device out; deactivating the person stops them immediately. The cost: people log in again every morning. No "log out all devices" button yet. |
 | **Cookie is `secure` only online** | Over plain http a cookie can be read on the network. | Production must be https (any modern host). |
 | **No Content-Security-Policy** | A future script bug would be easier to exploit. | Basic headers are on (no framing, no sniffing, no referrer leak). A strict CSP is step 6. |
 | **The browser's totals are for reading only** | A modified page could show a wrong total. | The server recomputes everything; the browser's numbers are never trusted. |
@@ -118,14 +118,14 @@ Safe to call twice. Without the secret it answers 401. It is the **only** place 
 
 ## 10. Decisions for you
 
-1. **Login by password stored by us (now) or an external service?** Password: works today, fully tested, but we carry the responsibility. External (e.g. Supabase Auth with e-mail link): less responsibility, needs a real project and an e-mail sender. I recommend **keeping passwords for the demo and the first shops**, and deciding later with real feedback.
-2. **Force a new password at the first login?** Safer (the owner stops knowing it) but one more screen. I recommend **yes, in step 6**.
-3. **Session length: 7 days.** Barbershop phones are shared and get lost. 1 day is safer; 7 days is more comfortable. Your choice.
-4. **Where does the online demo live?** The code is ready for any host with Node. Creating the Supabase project and the hosting account needs **your explicit go**; I will not do it on my own.
+1. **Login by password stored by us:** ✅ **kept** (decided). An external login service can be reconsidered later with real feedback.
+2. **Force a new password at the first login:** ✅ **yes** (decided, done: migration `004_temporary_passwords.sql`).
+3. **Session length:** ✅ **one day** (decided, done).
+4. **Where does the online demo live?** ⏳ Open. The code is ready for any host with Node. Creating the Supabase project (database) and the hosting account needs your explicit go, see the chat answer.
 
 ## 11. Handover to Step 6 (Review)
 
-- Strict Content-Security-Policy, a limit on login tries per address, forced password change.
+- Strict Content-Security-Policy and a limit on login tries per address.
 - Try the real restore of a backup in the real Supabase project (decision of step 4).
 - A full review with the owner of the barbershop using the online demo.
 - Performance with a month of real-size data (`EXPLAIN` on the day lists).
@@ -134,9 +134,9 @@ Safe to call twice. Without the secret it answers 401. It is the **only** place 
 
 - [x] **Typecheck, lint, production build** pass.
 - [x] **Unit tests** (rules, session cookie, password rules, forms, views) and **database tests** (login, lockout, idempotency, atomic refusal, reports, isolation, backup/restore…) all pass.
-- [x] **Browser, real app, real database, ~60 checks** (`e2e/`): login failure message; a whole day (open comanda, add item, pay, expense, reports, close the register with decisions, logout); a barber is refused on 7 owner screens and **cannot open the owner's comanda by URL**; **no phone digits in a barber's page source**; stock question; scheduling and no-show; duplicate phone; settings; **a deactivated person is thrown out on the next tap**; a password reset logs the other devices out; own password change; the daily job (401 without the secret).
+- [x] **Browser, real app, real database, ~60 checks** (`e2e/`): login failure message; **the temporary-password screen (menu hidden, every other screen redirects, new password must differ)**; a whole day (open comanda, add item, pay, expense, reports, close the register with decisions, logout); a barber is refused on 7 owner screens and **cannot open the owner's comanda by URL**; **no phone digits in a barber's page source**; stock question; scheduling and no-show; duplicate phone; settings; **a deactivated person is thrown out on the next tap**; a password reset logs the other devices out; own password change; the daily job (401 without the secret).
 - [x] **Mistakes planted on purpose were caught:** lock threshold changed to 500, the transaction queue removed, the rollback on refusal removed.
-- [ ] Owner answered the 4 decisions of section 10.
+- [x] Owner answered decisions 1–3 of section 10 (4, the hosting, is open).
 - [ ] Owner approved this document.
 
 ## Glossary (new words)

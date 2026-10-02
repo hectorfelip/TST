@@ -30,7 +30,7 @@ export const DEMO_PASSWORD = "demonstracao-1";
  */
 export async function seedDemo(adminPool: Pool, appPool: Pool, now: Date = new Date(), emailSuffix = "") {
   const email = (name: string) => `${name}${emailSuffix}@exemplo.com`;
-  const { barbershopId, ownerId } = await createBarbershopWithOwner(adminPool, { name: "Barbearia Exemplo", ownerName: "Carlos", ownerEmail: email("carlos"), ownerPassword: DEMO_PASSWORD });
+  const { barbershopId, ownerId } = await createBarbershopWithOwner(adminPool, { name: "Barbearia Exemplo", ownerName: "Carlos", ownerEmail: email("carlos"), ownerPassword: DEMO_PASSWORD, ownerPasswordTemporary: false });
   const owner: TenantContext = { barbershopId, userId: ownerId, role: "owner" };
   const day = startOfDay(now, "America/Sao_Paulo");
   const t = (hours: number) => new Date(day.getTime() + hours * HOUR); // hours since 00:00 of the shop's day
@@ -40,7 +40,7 @@ export async function seedDemo(adminPool: Pool, appPool: Pool, now: Date = new D
   // team
   const person = async (name: string, email: string) => {
     const id = (await run(owner, (tx) => createEmployeeCmd(tx, owner, { name, email, role: "barber" }))).id;
-    await setPasswordAsAdmin(adminPool, id, DEMO_PASSWORD);
+    await setPasswordAsAdmin(adminPool, id, DEMO_PASSWORD, { temporary: false });
     return id;
   };
   const rafaelId = await person("Rafael", email("rafael"));

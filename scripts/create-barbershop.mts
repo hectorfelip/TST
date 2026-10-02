@@ -1,7 +1,7 @@
 /**
  * npm run db:create-barbershop -- "Barbearia X" "Nome do Dono" dono@email.com [senha]
  * The MVP has no self sign-up: the platform admin creates each barbershop by hand.
- * Without a password, a random one is generated and printed ONCE: give it to the owner, who changes it on "Mais > Minha senha".
+ * Without a password, a random one is generated and printed ONCE: give it to the owner. It is TEMPORARY: the owner is asked to choose his own at the first login.
  */
 import { randomBytes } from "node:crypto";
 import { createBarbershopWithOwner } from "../src/db/admin";

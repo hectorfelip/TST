@@ -47,8 +47,8 @@ const navByRole: Record<Role, { mobile: NavItem[]; desktop: NavItem[] }> = {
 };
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
-  const { ctx, name } = await requireAuth();
-  const shopName = await read((tx) => getBarbershopName(tx));
+  const { ctx, name, mustChangePassword } = await requireAuth({ allowTemporary: true });
+  const shopName = mustChangePassword ? "" : await read((tx) => getBarbershopName(tx));
   const nav = navByRole[ctx.role];
 
   return (
@@ -64,9 +64,9 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           <button type="submit" className={styles.smallButton}>Sair</button>
         </form>
       </header>
-      <NavLinks items={nav.desktop} className={styles.sideNav} />
+      {!mustChangePassword && <NavLinks items={nav.desktop} className={styles.sideNav} />}
       <main className={styles.main}>{children}</main>
-      <NavLinks items={nav.mobile} className={styles.bottomNav} />
+      {!mustChangePassword && <NavLinks items={nav.mobile} className={styles.bottomNav} />}
     </div>
   );
 }

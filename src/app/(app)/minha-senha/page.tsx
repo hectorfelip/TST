@@ -4,14 +4,19 @@ import { changeOwnPasswordAction } from "@/modules/auth/api/actions";
 import { requireAuth } from "@/server/auth";
 
 export default async function MyPasswordPage() {
-  await requireAuth();
+  const { mustChangePassword } = await requireAuth({ allowTemporary: true });
   return (
     <>
-      <PageHeader title="Minha senha" />
+      <PageHeader title={mustChangePassword ? "Escolha a sua senha" : "Minha senha"} />
+      {mustChangePassword && (
+        <Card title="Primeiro acesso">
+          <p>A senha que você recebeu é temporária: outra pessoa a conhece. Escolha uma senha só sua para continuar.</p>
+        </Card>
+      )}
       <Card>
         <ActionForm action={changeOwnPasswordAction}>
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="current">Senha atual</label>
+            <label className={styles.label} htmlFor="current">{mustChangePassword ? "Senha temporária (a que você recebeu)" : "Senha atual"}</label>
             <input id="current" name="current" type="password" autoComplete="current-password" className={styles.input} required />
           </div>
           <div className={styles.field}>
@@ -25,7 +30,7 @@ export default async function MyPasswordPage() {
           <SubmitButton block>Trocar senha</SubmitButton>
         </ActionForm>
       </Card>
-      <Note>Depois de trocar, você precisa entrar de novo, e as outras telas onde você estava logado também saem.</Note>
+      <Note>Depois de trocar, você entra de novo com a senha nova, e os outros aparelhos onde você estava logado saem. A senha nova precisa ser diferente da atual.</Note>
     </>
   );
 }

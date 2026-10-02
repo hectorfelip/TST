@@ -23,7 +23,7 @@ try {
     process.exit(1);
   }
   await setPasswordAsAdmin(pool, rows[0].id, password);
-  console.log(`New password for ${email}: ${password}${givenPassword ? "" : "   (generated: shown only now)"}\nAll their open sessions stopped working.`);
+  console.log(`New TEMPORARY password for ${email}: ${password}${givenPassword ? "" : "   (generated: shown only now)"}\nAll their open sessions stopped working; they must choose their own password at the next login.`);
 } finally {
   await pool.end();
 }

@@ -115,17 +115,33 @@ await o.locator("details:has-text('Rafael') button:has-text('Definir senha nova'
 await settle(o);
 await r.goto(BASE + "/comandas");
 check("password reset by the owner logs the person out of old sessions", r.url().endsWith("/login"), r.url());
-await login(r, "rafael@exemplo.com", "rafael-nova-senha-9");
-check("and the new password works", r.url() === BASE + "/");
-
-// ---- own password change
-await r.goto(BASE + "/minha-senha");
+// a password set by the owner is TEMPORARY: the person must choose their own before anything else
+await r.goto(BASE + "/login");
+await r.fill("#email", "rafael@exemplo.com"); await r.fill("#password", "rafael-nova-senha-9"); await r.click("button:has-text('Entrar')");
+await r.waitForURL(/minha-senha/);
+check("the new (temporary) password works, and the first screen is 'choose your password'", (await text(r)).includes("Primeiro acesso"));
+await r.goto(BASE + "/comandas");
+check("with a temporary password every other screen sends the person back to 'Minha senha'", r.url().endsWith("/minha-senha"), r.url());
+t = await text(r);
+check("and the menu is hidden while it is temporary", !t.includes("Comandas") && !t.includes("Caixa"), t.slice(0, 300));
+await r.fill("#current", "rafael-nova-senha-9"); await r.fill("#password", "rafael-nova-senha-9"); await r.fill("#confirm", "rafael-nova-senha-9");
+await r.click("button:has-text('Trocar senha')");
+await r.waitForSelector("p[role=alert]:has-text('diferente')");
+check("the new password must differ from the temporary one", true);
 await r.fill("#current", "rafael-nova-senha-9"); await r.fill("#password", "rafael-terceira-3"); await r.fill("#confirm", "rafael-terceira-3");
 await r.click("button:has-text('Trocar senha')");
 await r.waitForURL(/login/);
-check("after changing own password: back to login with the note", (await text(r)).includes("Senha trocada"));
+check("after choosing their own password: back to login with the note", (await text(r)).includes("Senha trocada"));
 await login(r, "rafael@exemplo.com", "rafael-terceira-3");
-check("login with the third password", r.url() === BASE + "/");
+check("login with the chosen password goes straight to the day", r.url() === BASE + "/");
+
+// ---- own password change (later on, voluntary)
+await r.goto(BASE + "/minha-senha");
+await r.fill("#current", "rafael-terceira-3"); await r.fill("#password", "rafael-quarta-4"); await r.fill("#confirm", "rafael-quarta-4");
+await r.click("button:has-text('Trocar senha')");
+await r.waitForURL(/login/);
+await login(r, "rafael@exemplo.com", "rafael-quarta-4");
+check("a voluntary change keeps working normally (no forced screen)", r.url() === BASE + "/");
 
 await browser.close();
 console.log(failures === 0 ? "\nALL PASSED" : `\n${failures} FAILED`);

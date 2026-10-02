@@ -24,6 +24,8 @@ export async function read<T>(fn: (tx: Tx, ctx: TenantContext) => Promise<T>): P
 type ActOptions = {
   /** Checked BEFORE anything runs (the rules check again: two locks). */
   permission?: Action;
+  /** Only the "change my password" action sets this: with a temporary password nothing else may run. */
+  allowTemporary?: boolean;
   /** Send the browser's key: the same key twice has its effect once (see db/idempotency.ts). */
   idempotency?: { key: string | null | undefined; action: string };
 };
@@ -32,6 +34,9 @@ export async function act<T = null>(options: ActOptions, fn: (tx: Tx, ctx: Tenan
   try {
     const auth = await getAuth();
     if (!auth) return { ok: false, code: "UNAUTHENTICATED", message: "Sua sessão acabou. Entre de novo." };
+    if (auth.mustChangePassword && !options.allowTemporary) {
+      return { ok: false, code: "FORBIDDEN", message: "Escolha a sua senha primeiro (menu Minha senha)." };
+    }
     const { ctx } = auth;
     if (options.permission) {
       const allowed = requirePermission(ctx, options.permission);

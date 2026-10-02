@@ -20,7 +20,12 @@ import { assertSecret, createSessionToken, readSessionToken, SESSION_MAX_AGE_SEC
 
 export const SESSION_COOKIE = "session";
 
-export type Auth = { ctx: TenantContext; name: string };
+export type Auth = {
+  ctx: TenantContext;
+  name: string;
+  /** The password was given by someone else: until the person changes it, nothing else works. */
+  mustChangePassword: boolean;
+};
 
 const secret = () => assertSecret(process.env.SESSION_SECRET);
 
@@ -31,13 +36,17 @@ export const getAuth = cache(async (): Promise<Auth | null> => {
   const user = await withPublic(await appPool(), (tx) => lookupSessionUser(tx, token.employeeId));
   if (!user) return null; // deactivated or removed
   if (token.issuedAt < user.passwordChangedAt.getTime()) return null; // the password was changed after this login
-  return { ctx: { barbershopId: user.barbershopId, userId: user.employeeId, role: user.role }, name: user.name };
+  return { ctx: { barbershopId: user.barbershopId, userId: user.employeeId, role: user.role }, name: user.name, mustChangePassword: user.mustChangePassword };
 });
 
-/** For pages: no valid session = go to the login screen. */
-export async function requireAuth(): Promise<Auth> {
+/**
+ * For pages: no valid session = go to the login screen; a temporary password = go and choose your own first.
+ * Only the "my password" screen (and the menu around it) passes `allowTemporary`.
+ */
+export async function requireAuth(options: { allowTemporary?: boolean } = {}): Promise<Auth> {
   const auth = await getAuth();
   if (!auth) redirect("/login");
+  if (auth.mustChangePassword && !options.allowTemporary) redirect("/minha-senha");
   return auth;
 }
 

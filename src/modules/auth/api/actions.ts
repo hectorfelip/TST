@@ -14,7 +14,7 @@ export async function loginAction(_previous: unknown, formData: FormData): Promi
   try {
     const result = await withPublic(await appPool(), (tx) => authenticate(tx, text(formData, "email"), text(formData, "password")));
     if (!result.ok) return { ok: false, code: result.error.code, message: result.error.message };
-    await startSession(result.value.employeeId);
+    await startSession(result.value.employeeId); // a temporary password is handled by requireAuth: the next screen is "Minha senha"
   } catch (error) {
     console.error("[login] unexpected error:", error);
     return { ok: false, code: "UNEXPECTED", message: "Não foi possível entrar agora. Tente de novo em instantes." };
@@ -29,7 +29,7 @@ export async function logoutAction(): Promise<void> {
 
 /** Anyone changes their OWN password, typing the current one. The old sessions of this person (other phones) stop working. */
 export async function changeOwnPasswordAction(_previous: unknown, formData: FormData): Promise<ActionResult> {
-  const result = await act({ idempotency: { key: text(formData, "key"), action: "password.change" } }, async (tx, ctx) => {
+  const result = await act({ allowTemporary: true, idempotency: { key: text(formData, "key"), action: "password.change" } }, async (tx, ctx) => {
     if (text(formData, "password") !== text(formData, "confirm")) return { ok: false as const, error: { code: "INVALID_INPUT" as const, message: "As duas senhas novas são diferentes." } };
     const done = await setPasswordCmd(tx, ctx, { employeeId: ctx.userId, password: text(formData, "password"), currentPassword: text(formData, "current") });
     return done.ok ? ok(null) : done;

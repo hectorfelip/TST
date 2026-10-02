@@ -10,26 +10,28 @@ import { validatePassword } from "@/modules/auth/rules/password";
 import { DEFAULT_SETTINGS, validateSettings } from "@/modules/barbershops/rules/settings";
 import { withAdmin, type Tx } from "./client";
 
-export type NewBarbershop = { name: string; ownerName: string; ownerEmail: string; ownerPassword?: string; timeZone?: string };
+export type NewBarbershop = { name: string; ownerName: string; ownerEmail: string; ownerPassword?: string; /** default true */ ownerPasswordTemporary?: boolean; timeZone?: string };
 
 /**
  * The FIRST password of a person (nobody can type a "current" password that does not exist yet),
  * or a rescue when the owner forgot his own. Everyday changes go through setPasswordCmd.
  */
-async function writePassword(tx: Tx, employeeId: string, password: string, at: Date): Promise<void> {
+async function writePassword(tx: Tx, employeeId: string, password: string, at: Date, temporary: boolean): Promise<void> {
   const valid = validatePassword(password);
   if (!valid.ok) throw new Error(valid.error.message);
   await tx.query(
-    `INSERT INTO employee_credentials (employee_id, barbershop_id, password_hash, password_changed_at)
-     SELECT id, barbershop_id, $2, $3 FROM employees WHERE id = $1
+    `INSERT INTO employee_credentials (employee_id, barbershop_id, password_hash, password_changed_at, must_change_password)
+     SELECT id, barbershop_id, $2, $3, $4 FROM employees WHERE id = $1
      ON CONFLICT (employee_id) DO UPDATE
-       SET password_hash = EXCLUDED.password_hash, password_changed_at = EXCLUDED.password_changed_at, failed_attempts = 0, locked_until = NULL`,
-    [employeeId, await hashPassword(password), at],
+       SET password_hash = EXCLUDED.password_hash, password_changed_at = EXCLUDED.password_changed_at,
+           must_change_password = EXCLUDED.must_change_password, failed_attempts = 0, locked_until = NULL`,
+    [employeeId, await hashPassword(password), at, temporary],
   );
 }
 
-export function setPasswordAsAdmin(adminPool: Pool, employeeId: string, password: string, at: Date = new Date()): Promise<void> {
-  return withAdmin(adminPool, (tx) => writePassword(tx, employeeId, password, at));
+/** `temporary` (default): the person must choose their own password at the first login. Only demo data turns it off. */
+export function setPasswordAsAdmin(adminPool: Pool, employeeId: string, password: string, options: { at?: Date; temporary?: boolean } = {}): Promise<void> {
+  return withAdmin(adminPool, (tx) => writePassword(tx, employeeId, password, options.at ?? new Date(), options.temporary ?? true));
 }
 
 export async function createBarbershopWithOwner(
@@ -64,7 +66,7 @@ export async function createBarbershopWithOwner(
       input.ownerName.trim(),
       input.ownerEmail.trim().toLowerCase(),
     ]);
-    if (input.ownerPassword !== undefined) await writePassword(tx, ownerId, input.ownerPassword, new Date());
+    if (input.ownerPassword !== undefined) await writePassword(tx, ownerId, input.ownerPassword, new Date(), input.ownerPasswordTemporary ?? true);
     return { barbershopId, ownerId };
   });
 }

@@ -15,10 +15,10 @@ describe("session token", () => {
     });
   });
 
-  it("expires after 7 days", () => {
+  it("expires after one day", () => {
     const token = createSessionToken(EMPLOYEE, SECRET, NOW);
-    expect(readSessionToken(token, SECRET, new Date(NOW.getTime() + 6.9 * 86400_000))).not.toBeNull();
-    expect(readSessionToken(token, SECRET, new Date(NOW.getTime() + 7.1 * 86400_000))).toBeNull();
+    expect(readSessionToken(token, SECRET, new Date(NOW.getTime() + 23 * 3600_000))).not.toBeNull();
+    expect(readSessionToken(token, SECRET, new Date(NOW.getTime() + 25 * 3600_000))).toBeNull();
   });
 
   it("another secret, an edited body or an edited signature is refused", () => {

@@ -33,14 +33,14 @@ export async function authenticate(tx: Tx, email: string, password: string, now:
   return ok({ employeeId: row.employee_id, barbershopId: row.barbershop_id });
 }
 
-export type SessionUser = { employeeId: string; barbershopId: string; name: string; role: Role; passwordChangedAt: Date };
+export type SessionUser = { employeeId: string; barbershopId: string; name: string; role: Role; passwordChangedAt: Date; mustChangePassword: boolean };
 
 /** Who is this session NOW? Role and "active" come from the database on every request, never from the cookie. */
 export async function lookupSessionUser(tx: Tx, employeeId: string): Promise<SessionUser | null> {
-  const row = await tx.maybeOne<{ barbershop_id: string; name: string; role: Role; active: boolean; password_changed_at: Date }>(
+  const row = await tx.maybeOne<{ barbershop_id: string; name: string; role: Role; active: boolean; password_changed_at: Date; must_change_password: boolean }>(
     "SELECT * FROM session_lookup($1)",
     [employeeId],
   );
   if (!row || !row.active) return null;
-  return { employeeId, barbershopId: row.barbershop_id, name: row.name, role: row.role, passwordChangedAt: row.password_changed_at };
+  return { employeeId, barbershopId: row.barbershop_id, name: row.name, role: row.role, passwordChangedAt: row.password_changed_at, mustChangePassword: row.must_change_password };
 }

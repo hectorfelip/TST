@@ -54,6 +54,6 @@ Fill `.env.local` (see `.env.example`: `DATABASE_URL`, `DATABASE_ADMIN_URL`, `SE
 npm run dev
 ```
 
-Log in with `carlos@exemplo.com` (owner) or `rafael@exemplo.com` (barber), password `demonstracao-1`.
+Log in with `carlos@exemplo.com` (owner) or `rafael@exemplo.com` (barber), password `demonstracao-1` (demo data only). In a real barbershop every password given by someone else is temporary: the person chooses their own at the first login.
 The daily job: `GET /api/jobs/expiry` with `Authorization: Bearer <CRON_SECRET>`, once a day.
 Browser tests against the running app: [e2e/README.md](e2e/README.md).
