@@ -156,7 +156,7 @@ Safe to call twice. Without the secret it answers 401. It is the **only** place 
 **Limits you should know**
 - Vercel **Hobby** plan is for **non-commercial** use and has one build at a time. A paying barbershop means the Pro plan.
 - Supabase **free** plan: no automatic backups (decision 3 of step 4 is still a manual `npm run db:backup`, which needs the database password: reset it in the Supabase dashboard first) and projects idle for a week or so may be **paused**. Check before every demo.
-- If the transaction pooler address differs from `aws-1-sa-east-1.pooler.supabase.com`, `/api/health` shows `db: error`. The fix is to copy the right address from Supabase (Connect → Transaction pooler) into the `DATABASE_URL` variable in Vercel.
+- The pooler address cannot be guessed from the region: `aws-1-sa-east-1` was wrong for this project, `aws-0-sa-east-1.pooler.supabase.com` (port 6543) is the right one (confirmed: `/api/health` answers `db: ok`). The symptom of a wrong address is `tenant/user ... not found` in the Supabase pooler logs and `db: error` in `/api/health`. Always copy the address from Supabase (Connect → Transaction pooler).
 
 ## Glossary (new words)
 
