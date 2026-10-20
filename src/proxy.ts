@@ -13,6 +13,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except the login screen, the scheduled job (it has its own secret), and Next.js internals.
-  matcher: ["/((?!login|api/jobs|api/health|_next/static|_next/image|favicon.ico).*)"],
+  // Everything except the login screen, the PUBLIC booking pages (/agendar/...), the scheduled job (it has its own secret), and Next.js internals.
+  matcher: ["/((?!login|agendar/|api/jobs|api/health|_next/static|_next/image|favicon.ico).*)"],
 };

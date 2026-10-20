@@ -65,7 +65,7 @@ t = await text(p);
 check("expense shows in the movements and lowers the drawer (R$ 118,50)", t.includes("Papel toalha") && t.includes("R$ 118,50"), t);
 
 // reports / settings / team load for the owner
-for (const [path, needle] of [["/relatorios", "Entradas"], ["/configuracoes", "Comandas pendentes"], ["/equipe", "Adicionar pessoa"], ["/servicos", "Novo serviço"], ["/estoque", "Novo produto"], ["/clientes", "André Souza"], ["/agenda", "Hoje ("], ["/comandas", "Abertas"]]) {
+for (const [path, needle] of [["/relatorios", "Entradas"], ["/configuracoes", "Comandas pendentes"], ["/equipe", "Adicionar pessoa"], ["/servicos", "Novo serviço"], ["/estoque", "Novo produto"], ["/clientes", "André Souza"], ["/agenda?vista=lista", "Hoje ("], ["/agenda", "Agendar neste dia"], ["/comandas", "Abertas"]]) {
   await p.goto(BASE + path);
   const body = await text(p);
   check(`owner can open ${path}`, body.includes(needle), body.slice(0, 200));

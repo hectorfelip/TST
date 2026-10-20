@@ -14,6 +14,7 @@ Each step is reviewed and approved before the next one starts.
 | 3 | Rules | [docs/03-rules.md](docs/03-rules.md) | ✅ Approved |
 | 4 | Data | [docs/04-data.md](docs/04-data.md) | ✅ Approved |
 | 5 | Communication | [docs/05-communication.md](docs/05-communication.md) | Draft — waiting for approval |
+| + | Feature: calendar + public booking link | [docs/feature-calendar-and-booking-link.md](docs/feature-calendar-and-booking-link.md) | Built, waiting for your test |
 | 6 | Review | — | Not started |
 
 ## Running locally

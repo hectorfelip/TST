@@ -94,3 +94,100 @@ export function dayTitle(now: Date, timeZone: string): string {
   const weekday = new Intl.DateTimeFormat("pt-BR", { timeZone, weekday: "long" }).format(now);
   return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${String(p.day).padStart(2, "0")}/${String(p.month).padStart(2, "0")}`;
 }
+
+// --- Calendar dates ("2026-10-14" text, no time zone) --------------------------------------------------
+
+const YMD = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** "2026-10-14" is a real calendar date? (rejects 2026-02-30, 2026-13-01...) */
+export function isValidYmd(ymd: string): boolean {
+  const m = YMD.exec(ymd);
+  if (!m) return false;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]);
+}
+
+/** The local calendar date of an instant, in the barbershop's time zone. */
+export function localYmd(date: Date, timeZone: string): string {
+  const p = localParts(date, timeZone);
+  return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+}
+
+/** Calendar arithmetic on dates without time zone: `n` days after (or before, if negative). */
+export function addDaysYmd(ymd: string, n: number): string {
+  const m = YMD.exec(ymd);
+  if (!m) throw new Error(`Invalid date: ${ymd}`);
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + n));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** 0 = Sunday ... 6 = Saturday. */
+export function weekdayOfYmd(ymd: string): number {
+  const m = YMD.exec(ymd);
+  if (!m) throw new Error(`Invalid date: ${ymd}`);
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay();
+}
+
+/** The instant of "HH:mm" on the local date `ymd`, or null if the date or the time is not valid. */
+export function zonedTime(ymd: string, hhmm: string, timeZone: string): Date | null {
+  if (!isValidYmd(ymd)) return null;
+  const t = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
+  if (!t) return null;
+  const [year, month, day] = ymd.split("-").map(Number);
+  const midnightAsUtc = Date.UTC(year, month - 1, day);
+  const first = midnightAsUtc - offsetMinutes(new Date(midnightAsUtc), timeZone) * 60000;
+  const midnight = midnightAsUtc - offsetMinutes(new Date(first), timeZone) * 60000;
+  return new Date(midnight + (Number(t[1]) * 60 + Number(t[2])) * 60000);
+}
+
+/** Minutes since local midnight of an instant. */
+export function minutesOfDay(date: Date, timeZone: string): number {
+  const p = localParts(date, timeZone);
+  return p.hour * 60 + p.minute;
+}
+
+/** "08:30" for 510. */
+export function formatMinutes(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+/** The weeks (Sunday first) that cover the month of `ymd`; days outside the month are marked. */
+export function monthWeeks(ymd: string): { ymd: string; inMonth: boolean }[][] {
+  const [year, month] = ymd.split("-").map(Number);
+  const first = `${year}-${String(month).padStart(2, "0")}-01`;
+  let cursor = addDaysYmd(first, -weekdayOfYmd(first));
+  const weeks: { ymd: string; inMonth: boolean }[][] = [];
+  do {
+    const week = [];
+    for (let i = 0; i < 7; i++) {
+      week.push({ ymd: cursor, inMonth: cursor.startsWith(`${year}-${String(month).padStart(2, "0")}-`) });
+      cursor = addDaysYmd(cursor, 1);
+    }
+    weeks.push(week);
+  } while (cursor.startsWith(`${year}-${String(month).padStart(2, "0")}-`) || weeks.length < 4);
+  return weeks;
+}
+
+/** The first day of the month that is `n` months after (or before) the month of `ymd`. */
+export function shiftMonth(ymd: string, n: number): string {
+  const m = YMD.exec(ymd);
+  if (!m) throw new Error(`Invalid date: ${ymd}`);
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1 + n, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
+}
+
+/** "Outubro de 2026". */
+export function monthLabel(ymd: string): string {
+  const m = YMD.exec(ymd);
+  if (!m) throw new Error(`Invalid date: ${ymd}`);
+  const label = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 1)));
+  return `${label.charAt(0).toUpperCase()}${label.slice(1)}`;
+}
+
+/** "Quarta-feira, 14/10" for a calendar date. */
+export function ymdTitle(ymd: string): string {
+  const m = YMD.exec(ymd);
+  if (!m) throw new Error(`Invalid date: ${ymd}`);
+  const weekday = new Intl.DateTimeFormat("pt-BR", { weekday: "long", timeZone: "UTC" }).format(new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))));
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)}, ${m[3]}/${m[2]}`;
+}

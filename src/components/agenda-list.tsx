@@ -16,11 +16,12 @@ export function AgendaList({ items, showBarber, empty }: { items: ComandaView[];
               </span>
               <span className={styles.rowMeta}>
                 {showBarber && `${c.appointment?.barberName} · `}
+                {c.online && "Online · "}
                 {c.items.length > 0 ? c.items.map((i) => i.name).join(", ") : "Serviço a definir"}
               </span>
             </span>
             <span>
-              {c.appointment?.timePassed ? <Badge tone="warning">Atrasado</Badge> : c.items.length > 0 ? <strong><Money cents={c.total} /></strong> : null}
+              {c.online?.status === "pending" ? <Badge tone="warning">Aguardando</Badge> : c.appointment?.timePassed ? <Badge tone="warning">Atrasado</Badge> : c.items.length > 0 ? <strong><Money cents={c.total} /></strong> : null}
             </span>
           </Link>
         </li>

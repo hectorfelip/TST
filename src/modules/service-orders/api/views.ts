@@ -47,6 +47,8 @@ export type ComandaView = {
   paymentChange: Cents | null;
   note: string | null;
   appointment: { label: string; time: string; barberId: string; barberName: string; timePassed: boolean } | null;
+  /** Booked by the client on the public link: "pending" waits for the barbershop to approve it. */
+  online: { status: "pending" | "confirmed" } | null;
   /** null = not pending. `daysLeft` null = pending, but this barbershop never cancels by itself. */
   pending: { daysLeft: number | null } | null;
   cancellationReason: string | null;
@@ -93,6 +95,7 @@ export function toComandaView(c: Comanda, lookups: Lookups): ComandaView {
           timePassed: c.appointment.at.getTime() <= now.getTime(),
         }
       : null,
+    online: c.online ?? null,
     pending: c.status === "open" && c.pendingSince ? { daysLeft: pendingDaysLeft(c, now, lookups.expiryDays) } : null,
     cancellationReason: c.cancellation?.reason ?? null,
     barbersLabel: barberNames.length > 0 ? barberNames.join(", ") : "Sem itens",

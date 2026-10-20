@@ -51,6 +51,11 @@ describe("toComandaView", () => {
     expect(tomorrow?.label).toBe("Amanhã 10:00");
   });
 
+  it("an online booking says if it still waits for approval; a normal comanda says nothing", () => {
+    expect(toComandaView(comanda({ online: { status: "pending" } }), lookups).online).toEqual({ status: "pending" });
+    expect(toComandaView(comanda(), lookups).online).toBeNull();
+  });
+
   it("pending: days left, and no deadline when the barbershop turned the option off", () => {
     const pendingSince = new Date("2026-09-29T15:00:00Z"); // 3 days ago, deadline 5
     expect(toComandaView(comanda({ pendingSince }), lookups).pending).toEqual({ daysLeft: 2 });

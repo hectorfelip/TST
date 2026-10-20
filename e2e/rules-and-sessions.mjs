@@ -44,10 +44,10 @@ await o.selectOption("#barber", { label: "Rafael" });
 await o.click("button:has-text('Revisar agendamento')");
 await o.click("button:has-text('Sim, agendar')");
 await o.waitForSelector("text=Agendado ✓");
-await r.goto(BASE + "/agenda");
+await r.goto(BASE + "/agenda?vista=lista");
 t = await text(r);
 check("Rafael sees tomorrow's appointment in HIS agenda", t.includes("09:00") && t.includes("André Souza"), t.slice(0, 500));
-await d.goto(BASE + "/agenda");
+await d.goto(BASE + "/agenda?vista=lista");
 t = await text(d);
 check("Diego does NOT see Rafael's appointment", !t.includes("André Souza") || !t.includes("09:00"), t.slice(0, 500));
 // past time today refused
@@ -86,13 +86,13 @@ check("duplicate phone refused", true);
 
 // ---- settings
 await o.goto(BASE + "/configuracoes");
-await o.click("role=switch");
+await o.click("[aria-label='Cancelar pendentes automaticamente']");
 await o.click("button:has-text('Revisar e salvar')");
 await o.click("button:has-text('Sim, salvar')");
 await o.waitForSelector("text=Configurações salvas");
 await o.goto(BASE + "/configuracoes");
 t = await text(o);
-check("setting saved (auto-cancel now Desligado)", t.includes("Desligado"), t.slice(0, 300));
+check("setting saved (auto-cancel now Desligado)", t.includes("Desligado: a comanda pendente fica esperando"), t.slice(0, 300));
 
 // ---- sessions die when the owner changes things
 await d.goto(BASE + "/comandas");

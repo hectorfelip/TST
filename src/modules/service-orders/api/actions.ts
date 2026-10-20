@@ -13,7 +13,7 @@ import { act, type ActionResult } from "@/server/run";
 import { money, text } from "@/server/form";
 import { refreshScreens } from "@/server/refresh";
 import { fail, ok } from "@/shared/result";
-import { atLocalTime } from "@/shared/time";
+import { addDaysYmd, atLocalTime, isValidYmd, localYmd, zonedTime } from "@/shared/time";
 import {
   addItemCmd,
   applyDiscountCmd,
@@ -51,16 +51,27 @@ export async function openComandaAction(_previous: unknown, formData: FormData):
   return result;
 }
 
-/** Books a registered client with a barber, today or tomorrow. The times are read in the BARBERSHOP's time zone. */
+const MAX_DAYS_AHEAD = 90;
+
+/** Books a registered client with a barber: today, tomorrow or another date. The times are read in the BARBERSHOP's time zone. */
 export async function scheduleAction(_previous: unknown, formData: FormData): Promise<ActionResult<{ id: string }>> {
   const day = text(formData, "day");
   const result = await act({ permission: "comanda.open", idempotency: idem(formData, "comanda.schedule") }, async (tx, ctx) => {
-    if (day !== "hoje" && day !== "amanha") return fail("INVALID_INPUT", "Escolha o dia.");
+    if (day !== "hoje" && day !== "amanha" && day !== "outro") return fail("INVALID_INPUT", "Escolha o dia.");
     const clientId = text(formData, "clientId");
     if (!clientId) return fail("INVALID_INPUT", "Escolha o cliente.");
     const now = new Date();
     const { timeZone } = await getSettings(tx);
-    const when = atLocalTime(now, timeZone, day === "hoje" ? 0 : 1, text(formData, "time"));
+    let when: Date | null;
+    if (day === "outro") {
+      const date = text(formData, "date");
+      const today = localYmd(now, timeZone);
+      if (!isValidYmd(date)) return fail("INVALID_INPUT", "Escolha a data.");
+      if (date > addDaysYmd(today, MAX_DAYS_AHEAD)) return fail("INVALID_INPUT", `Só dá para agendar até ${MAX_DAYS_AHEAD} dias à frente.`);
+      when = zonedTime(date, text(formData, "time"), timeZone);
+    } else {
+      when = atLocalTime(now, timeZone, day === "hoje" ? 0 : 1, text(formData, "time"));
+    }
     if (!when) return fail("INVALID_INPUT", "Informe o horário, ex.: 15:30.");
     const barberId = text(formData, "barberId") || ctx.userId;
     const opened = await openComandaCmd(tx, ctx, { clientId, appointment: { at: when, barberId }, at: now });

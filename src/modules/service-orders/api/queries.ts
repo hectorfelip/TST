@@ -12,7 +12,7 @@ import { isLowStock } from "@/modules/inventory/rules/stock";
 import { listServices } from "@/modules/services/data/services.repo";
 import { loadWorld } from "@/server/lookups";
 import { read } from "@/server/run";
-import { clockTime, dayRange, dayTitle, relativeDay } from "@/shared/time";
+import { addDaysYmd, clockTime, dayRange, dayTitle, isValidYmd, localYmd, monthLabel, monthWeeks, relativeDay, shiftMonth, ymdTitle, zonedTime } from "@/shared/time";
 import type { Cents } from "@/shared/money";
 import type { Role } from "@/shared/tenant";
 import { barberRevenue } from "../rules/totals";
@@ -20,7 +20,7 @@ import { agendaBetween } from "../rules/appointments";
 import { canView, comandaTotal, isComandaOf, type Comanda } from "../rules/comanda";
 import type { DayDecision } from "../rules/day-close";
 import { planDayCloseCmd } from "../data/commands";
-import { getComanda, listAppointments, listClosedBetween, listComandas, listFinishedBetween } from "../data/comandas.repo";
+import { getComanda, listAppointments, listClosedBetween, listComandas, listFinishedBetween, listWaitingApproval } from "../data/comandas.repo";
 import { toComandaView, type ComandaView } from "./views";
 
 export type Board = {
@@ -219,6 +219,63 @@ export async function loadCloseCash(): Promise<CloseCashPage> {
           expiresInDays: e.expiresInDays,
         };
       }),
+    };
+  });
+}
+
+export type CalendarCell = { ymd: string; day: number; inMonth: boolean; count: number; isToday: boolean; isSelected: boolean };
+
+export type CalendarPage = {
+  role: Role;
+  today: string;
+  selected: string;
+  selectedTitle: string;
+  monthTitle: string;
+  /** First day of the previous / next month (for the arrows). */
+  prevMonth: string;
+  nextMonth: string;
+  weeks: CalendarCell[][];
+  /** The open appointments of the selected day, earliest first (the ones this person may see). */
+  items: ComandaView[];
+  /** Online bookings waiting for approval (any day), earliest first. */
+  waiting: ComandaView[];
+};
+
+/**
+ * The calendar of the Agenda tab: a month grid with how many clients are booked each day, plus the list of the chosen day.
+ * `requested` is untrusted text from the address bar: anything that is not a real date means "today".
+ */
+export async function loadCalendar(requested?: string): Promise<CalendarPage> {
+  return read(async (tx, ctx) => {
+    const world = await loadWorld(tx);
+    const tz = world.timeZone;
+    const today = localYmd(world.now, tz);
+    const selected = requested && isValidYmd(requested) && requested >= "2020-01-01" && requested <= "2100-12-31" ? requested : today;
+    const weeks = monthWeeks(selected);
+    const from = zonedTime(weeks[0][0].ymd, "00:00", tz) as Date;
+    const to = zonedTime(addDaysYmd(weeks.at(-1)![6].ymd, 1), "00:00", tz) as Date;
+    const visible = agendaBetween(ctx, await listAppointments(tx, from, to), { from, to });
+    const waiting = (await listWaitingApproval(tx)).filter((c) => canView(ctx, c)).sort((a, b) => a.appointment!.at.getTime() - b.appointment!.at.getTime());
+
+    const perDay = new Map<string, number>();
+    for (const c of visible) {
+      const ymd = localYmd(c.appointment!.at, tz);
+      perDay.set(ymd, (perDay.get(ymd) ?? 0) + 1);
+    }
+    const view = (c: Comanda) => toComandaView(c, world);
+    return {
+      role: ctx.role,
+      today,
+      selected,
+      selectedTitle: ymdTitle(selected),
+      monthTitle: monthLabel(selected),
+      prevMonth: shiftMonth(selected, -1),
+      nextMonth: shiftMonth(selected, 1),
+      weeks: weeks.map((week) =>
+        week.map((d) => ({ ymd: d.ymd, day: Number(d.ymd.slice(8)), inMonth: d.inMonth, count: perDay.get(d.ymd) ?? 0, isToday: d.ymd === today, isSelected: d.ymd === selected })),
+      ),
+      items: visible.filter((c) => localYmd(c.appointment!.at, tz) === selected).map(view),
+      waiting: waiting.map(view),
     };
   });
 }

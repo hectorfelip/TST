@@ -9,8 +9,15 @@ import type { Role } from "@/shared/tenant";
 
 type Person = { id: string; name: string };
 
-export function ScheduleForm({ role, currentBarberId, barbers, clients }: { role: Role; currentBarberId: string; barbers: Person[]; clients: Person[] }) {
-  const [day, setDay] = useState<"hoje" | "amanha">("amanha");
+type Day = "hoje" | "amanha" | "outro";
+
+const dateLabel = (ymd: string) => `${ymd.slice(8)}/${ymd.slice(5, 7)}`;
+
+export function ScheduleForm({
+  role, currentBarberId, barbers, clients, initialDay, initialDate, minDate,
+}: { role: Role; currentBarberId: string; barbers: Person[]; clients: Person[]; initialDay: Day; initialDate: string; minDate: string }) {
+  const [day, setDay] = useState<Day>(initialDay);
+  const [date, setDate] = useState(initialDate);
   const [done, setDone] = useState(false);
   const [asking, setAsking] = useState(false);
   const [clientId, setClientId] = useState("");
@@ -19,7 +26,8 @@ export function ScheduleForm({ role, currentBarberId, barbers, clients }: { role
 
   const client = clients.find((c) => c.id === clientId);
   const barber = barbers.find((b) => b.id === barberId);
-  const valid = !!client && !!barber && /^\d{2}:\d{2}$/.test(time);
+  const valid = !!client && !!barber && /^\d{2}:\d{2}$/.test(time) && (day !== "outro" || /^\d{4}-\d{2}-\d{2}$/.test(date));
+  const dayText = day === "hoje" ? "hoje" : day === "amanha" ? "amanhã" : `em ${dateLabel(date)}`;
 
   return (
     <>
@@ -32,18 +40,19 @@ export function ScheduleForm({ role, currentBarberId, barbers, clients }: { role
         {/* the real values live in hidden fields so they are sent from either step */}
         <input type="hidden" name="clientId" value={clientId} />
         <input type="hidden" name="day" value={day} />
+        <input type="hidden" name="date" value={day === "outro" ? date : ""} />
         <input type="hidden" name="time" value={time} />
         <input type="hidden" name="barberId" value={barberId} />
         {done ? (
           <Card title="Agendado ✓">
-            <p>{client?.name} com {barber?.name}, {day === "hoje" ? "hoje" : "amanhã"} às {time}.</p>
+            <p>{client?.name} com {barber?.name}, {dayText} às {time}.</p>
             <Note>Aparece na agenda do barbeiro.</Note>
             <Link href="/agenda" className={`${styles.button} ${styles.buttonBlock}`}>Ver agenda</Link>
           </Card>
         ) : asking ? (
           <Card>
             <p>
-              Agendar <strong>{client?.name}</strong> com <strong>{barber?.name}</strong>, <strong>{day === "hoje" ? "hoje" : "amanhã"} às {time}</strong>?
+              Agendar <strong>{client?.name}</strong> com <strong>{barber?.name}</strong>, <strong>{dayText} às {time}</strong>?
             </p>
             <div className={styles.buttonGrid}>
               <SubmitButton>Sim, agendar</SubmitButton>
@@ -63,10 +72,17 @@ export function ScheduleForm({ role, currentBarberId, barbers, clients }: { role
               </div>
               <div className={styles.field}>
                 <span className={styles.label}>Dia</span>
-                <div className={styles.buttonGrid}>
+                <div className={styles.buttonGrid} style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
                   <button type="button" className={day === "hoje" ? styles.button : styles.buttonSecondary} aria-pressed={day === "hoje"} onClick={() => setDay("hoje")}>Hoje</button>
                   <button type="button" className={day === "amanha" ? styles.button : styles.buttonSecondary} aria-pressed={day === "amanha"} onClick={() => setDay("amanha")}>Amanhã</button>
+                  <button type="button" className={day === "outro" ? styles.button : styles.buttonSecondary} aria-pressed={day === "outro"} onClick={() => setDay("outro")}>Outro dia</button>
                 </div>
+                {day === "outro" && (
+                  <>
+                    <label className={styles.label} htmlFor="date">Data</label>
+                    <input id="date" type="date" className={styles.input} value={date} min={minDate} onChange={(e) => setDate(e.target.value)} />
+                  </>
+                )}
               </div>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="time">Horário</label>

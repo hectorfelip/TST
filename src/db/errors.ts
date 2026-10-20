@@ -9,6 +9,7 @@ import { fail, type Result } from "@/shared/result";
 const KNOWN: Record<string, { code: "INVALID_STATE" | "NOT_ALLOWED"; message: string }> = {
   one_open_register_per_shop: { code: "INVALID_STATE", message: "Já existe um caixa aberto. Feche-o antes de abrir outro." },
   clients_phone_key: { code: "NOT_ALLOWED", message: "Já existe um cliente com este telefone." },
+  booking_settings_slug_key: { code: "NOT_ALLOWED", message: "Este endereço já está em uso por outra barbearia. Escolha outro." },
   employees_email_key: { code: "NOT_ALLOWED", message: "Este e-mail já está em uso." },
 };
 

@@ -21,6 +21,7 @@ const allowedDeps: Record<string, string[]> = {
   finance: ["auth"],
   employees: ["auth", "barbershops"],
   clients: ["auth", "barbershops"],
+  booking: ["auth", "barbershops", "services", "clients", "service-orders"],
   "service-orders": ["auth", "barbershops", "services", "inventory", "finance", "clients", "employees"],
 };
 

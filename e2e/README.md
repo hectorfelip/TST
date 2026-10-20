@@ -17,3 +17,6 @@ CHROME_PATH=... PLAYWRIGHT_MODULES=... node e2e/rules-and-sessions.mjs
 `day-flow.mjs`: owner and barber for a whole day (open comanda, items, payment, expense, reports, close the register,
 logout, daily job). `rules-and-sessions.mjs`: stock question, scheduling, no-show, client rules, settings, deactivated
 person thrown out on the next request, password reset and change.
+
+`booking.mjs`: the calendar and the public booking link (owner turns it on, a visitor books with no login, the page leaks
+nothing, approval mode, the team switch, link OFF = 404). Like the others, it needs a fresh demo database.

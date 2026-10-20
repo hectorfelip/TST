@@ -15,6 +15,7 @@ type ComandaRow = {
   note: string | null; appointment_at: Date | null; appointment_barber_id: string | null; pending_since: Date | null;
   no_show_by: string | null; no_show_at: Date | null; closed_at: Date | null; closed_by: string | null;
   cancellation_reason: string | null; cancellation_by: string | null; cancellation_at: Date | null;
+  online_status: string | null; appointment_minutes: number | null;
 };
 
 type ItemRow = {
@@ -25,7 +26,7 @@ type ItemRow = {
 
 const COMANDA_COLUMNS = `id, barbershop_id, number, client_id, opened_by, opened_at, status, discount_cents, discount_given_by, discount_at,
   payment_method, payment_total_cents, payment_received_cash_cents, payment_change_cents, payment_register_id, note, appointment_at,
-  appointment_barber_id, pending_since, no_show_by, no_show_at, closed_at, closed_by, cancellation_reason, cancellation_by, cancellation_at`;
+  appointment_barber_id, pending_since, no_show_by, no_show_at, closed_at, closed_by, cancellation_reason, cancellation_by, cancellation_at, online_status, appointment_minutes`;
 
 const toItem = (r: ItemRow): ComandaItem => ({
   id: r.id,
@@ -71,6 +72,8 @@ function toComanda(r: ComandaRow, itemRows: ItemRow[]): Comanda {
     closedAt: r.closed_at,
     closedBy: r.closed_by,
     cancellation: r.cancellation_reason && r.cancellation_by && r.cancellation_at ? { reason: r.cancellation_reason, by: r.cancellation_by, at: r.cancellation_at } : null,
+    online: r.online_status ? { status: r.online_status as "pending" | "confirmed" } : null,
+    appointmentMinutes: r.appointment_minutes,
   };
 }
 
@@ -135,15 +138,24 @@ export function listPending(tx: Tx, options: { lock?: boolean } = {}): Promise<C
   return load(tx, "status = 'open' AND pending_since IS NOT NULL", [], `ORDER BY pending_since${options.lock ? " FOR UPDATE" : ""}`);
 }
 
+/** Online bookings that wait for the barbershop's approval, earliest appointment first. */
+export function listWaitingApproval(tx: Tx): Promise<Comanda[]> {
+  return load(tx, "status = 'open' AND online_status = 'pending'", [], "ORDER BY appointment_at");
+}
+
 export async function nextComandaNumber(tx: Tx): Promise<number> {
   return (await tx.one<{ n: number }>("SELECT next_comanda_number() AS n")).n;
 }
 
-export async function insertComanda(tx: Tx, c: Comanda): Promise<void> {
+export async function insertComanda(tx: Tx, c: Comanda, extras: { ipHash?: string | null } = {}): Promise<void> {
   await tx.query(
-    `INSERT INTO comandas (id, barbershop_id, number, client_id, opened_by, opened_at, status, note, appointment_at, appointment_barber_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [c.id, c.barbershopId, c.number, c.clientId, c.openedBy, c.openedAt, c.status, c.note, c.appointment?.at ?? null, c.appointment?.barberId ?? null],
+    `INSERT INTO comandas (id, barbershop_id, number, client_id, opened_by, opened_at, status, note, appointment_at, appointment_barber_id,
+                           source, online_status, appointment_minutes, online_ip_hash)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+    [
+      c.id, c.barbershopId, c.number, c.clientId, c.openedBy, c.openedAt, c.status, c.note, c.appointment?.at ?? null, c.appointment?.barberId ?? null,
+      c.online ? "online" : "staff", c.online?.status ?? null, c.appointmentMinutes ?? null, c.online ? (extras.ipHash ?? null) : null,
+    ],
   );
   await syncItems(tx, c);
 }
@@ -158,14 +170,14 @@ export async function saveComanda(tx: Tx, c: Comanda): Promise<void> {
        discount_cents = $3, discount_given_by = $4, discount_at = $5,
        payment_method = $6, payment_total_cents = $7, payment_received_cash_cents = $8, payment_change_cents = $9, payment_register_id = $10,
        note = $11, pending_since = $12, no_show_by = $13, no_show_at = $14, closed_at = $15, closed_by = $16,
-       cancellation_reason = $17, cancellation_by = $18, cancellation_at = $19, updated_at = now()
+       cancellation_reason = $17, cancellation_by = $18, cancellation_at = $19, online_status = $20, updated_at = now()
      WHERE id = $1`,
     [
       c.id, c.status,
       c.discount?.amount ?? null, c.discount?.givenBy ?? null, c.discount?.at ?? null,
       c.payment?.method ?? null, c.payment?.total ?? null, c.payment?.receivedCash ?? null, c.payment?.change ?? null, c.payment?.registerId ?? null,
       c.note, c.pendingSince, c.noShow?.by ?? null, c.noShow?.at ?? null, c.closedAt, c.closedBy,
-      c.cancellation?.reason ?? null, c.cancellation?.by ?? null, c.cancellation?.at ?? null,
+      c.cancellation?.reason ?? null, c.cancellation?.by ?? null, c.cancellation?.at ?? null, c.online?.status ?? null,
     ],
   );
   await syncItems(tx, c);

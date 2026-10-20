@@ -60,7 +60,7 @@ export async function createBarbershopWithOwner(
       ],
     );
     // A barbershop is born with its owner (R-EMP-02: it always has at least one).
-    await tx.query(`INSERT INTO employees (id, barbershop_id, name, email, role) VALUES ($1, $2, $3, $4, 'owner')`, [
+    await tx.query(`INSERT INTO employees (id, barbershop_id, name, email, role, takes_online_bookings) VALUES ($1, $2, $3, $4, 'owner', false)`, [
       ownerId,
       barbershopId,
       input.ownerName.trim(),

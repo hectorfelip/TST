@@ -2,12 +2,15 @@ import { ActionForm, SubmitButton } from "@/components/action-form";
 import { NoAccess } from "@/components/no-access";
 import { Badge, Card, Note, PageHeader, styles } from "@/components/ui";
 import { changeRoleAction, createEmployeeAction, resetPasswordAction, setActiveAction } from "@/modules/employees/api/actions";
+import { setTakesOnlineAction } from "@/modules/booking/api/actions";
+import { loadTakesOnline } from "@/modules/booking/api/queries";
 import { loadTeam } from "@/modules/employees/api/queries";
 import { requireAction } from "@/server/auth";
 
 export default async function TeamPage() {
   if (!(await requireAction("employee.manage"))) return <NoAccess />;
   const team = await loadTeam();
+  const takesOnline = await loadTakesOnline();
   return (
     <>
       <PageHeader title="Equipe" />
@@ -19,7 +22,7 @@ export default async function TeamPage() {
                 <summary className={styles.row}>
                   <span className={styles.rowMain}>
                     <span>{e.name}{e.isMe && " (você)"}</span>
-                    <span className={styles.rowMeta}>{e.role === "owner" ? "Dono" : "Barbeiro"} · {e.email}</span>
+                    <span className={styles.rowMeta}>{e.role === "owner" ? "Dono" : "Barbeiro"} · {e.email}{e.active && takesOnline[e.id] && " · Aceita agendamento online"}</span>
                   </span>
                   {e.active ? <Badge tone="ok">Ativo</Badge> : <Badge>Inativo</Badge>}
                 </summary>
@@ -30,6 +33,11 @@ export default async function TeamPage() {
                     <input id={`pw-${e.id}`} name="password" type="text" autoComplete="off" className={styles.input} minLength={8} required />
                   </div>
                   <SubmitButton variant="secondary">Definir senha nova</SubmitButton>
+                </ActionForm>
+                <ActionForm action={setTakesOnlineAction} successMessage="Preferência salva.">
+                  <input type="hidden" name="employeeId" value={e.id} />
+                  <input type="hidden" name="value" value={takesOnline[e.id] ? "no" : "yes"} />
+                  <SubmitButton variant="secondary">{takesOnline[e.id] ? "Parar de aceitar agendamento online" : "Aceitar agendamento online"}</SubmitButton>
                 </ActionForm>
                 <ActionForm action={changeRoleAction} successMessage="Papel alterado.">
                   <input type="hidden" name="employeeId" value={e.id} />

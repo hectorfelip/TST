@@ -3,8 +3,10 @@
  * (see `Comanda.appointment`). Barbers see the clients booked with them for
  * today and tomorrow; the owner sees everyone's.
  *
- * NOT included on purpose (v2): calendar grid, double-booking warnings,
- * reminders by WhatsApp, online booking by the client.
+ * The calendar (month grid) is a screen over this same list. Online booking by the client lives in
+ * `modules/booking`: it creates these very same comandas.
+ *
+ * NOT included on purpose (v2): double-booking warnings for appointments typed by the team, and reminders by WhatsApp.
  */
 import type { TenantContext } from "@/shared/tenant";
 import { canView, type Comanda } from "./comanda";

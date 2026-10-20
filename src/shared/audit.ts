@@ -18,7 +18,11 @@ export type AuditAction =
   | "employee.role_changed"
   | "employee.deactivated"
   | "employee.password_set"
-  | "settings.changed";
+  | "settings.changed"
+  | "booking.created"
+  | "booking.approved"
+  | "booking.declined"
+  | "booking.settings_changed";
 
 export type AuditEntry = {
   barbershopId: string;

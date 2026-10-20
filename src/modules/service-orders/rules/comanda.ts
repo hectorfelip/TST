@@ -83,6 +83,10 @@ export type Comanda = {
   note: string | null;
   /** Set when this comanda is an appointment (needs a registered client). */
   appointment: Appointment | null;
+  /** Booked by the client on the public page; `pending` = waits for the barbershop to approve. null/absent = made by the team. */
+  online?: { status: "pending" | "confirmed" } | null;
+  /** How long the appointment lasts. null/absent = the barbershop's slot length. */
+  appointmentMinutes?: number | null;
   /** When the owner chose "keep pending" at closing. Starts the expiry countdown. */
   pendingSince: Date | null;
   /** The client did not show up. Recorded for the owner; it is NOT a cancellation. */

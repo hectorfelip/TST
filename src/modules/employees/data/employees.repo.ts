@@ -16,8 +16,9 @@ export async function getEmployee(tx: Tx, id: string): Promise<Employee | null> 
 }
 
 export async function insertEmployee(tx: Tx, e: Employee): Promise<void> {
-  await tx.query(`INSERT INTO employees (id, barbershop_id, name, email, role, active) VALUES ($1, $2, $3, $4, $5, $6)`, [
-    e.id, e.barbershopId, e.name, e.email, e.role, e.active,
+  // Barbers can be chosen on the public booking page from day one; owners must switch it on themselves.
+  await tx.query(`INSERT INTO employees (id, barbershop_id, name, email, role, active, takes_online_bookings) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [
+    e.id, e.barbershopId, e.name, e.email, e.role, e.active, e.role === "barber",
   ]);
 }
 
