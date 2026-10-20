@@ -1,6 +1,6 @@
 # Feature — Calendar in the Agenda + public booking link
 
-> Status: **built, tested, waiting for your test.** Asked after step 5. Your decisions are in section 2.
+> Status: **built, tested, and tried online by the owner ("deu bom").** Asked after step 5. Your decisions are in section 2.
 > It is a feature on top of the 5 approved steps: it follows the same architecture (rules → data → api → screens).
 
 ## 1. What it does, in simple words
